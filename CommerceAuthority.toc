@@ -1,0 +1,23 @@
+## Interface: 16001, 11508, 11509, 20506, 38000, 50504, 120100, 120105
+## Title: Tylesser - Commerce Authority
+## Notes: Craftsman's Writs and Waylaid Crates for the Azeroth Commerce Authority and Durotar Supply and Logistics: auction prices, reputation, Merchant's Favor and the cheapest writs to buy.
+## Author: Tylesser
+## Version: @project-version@
+## SavedVariables: CommerceAuthorityDB
+## OptionalDeps: Auctionator, TradeSkillMaster, Auc-Advanced, ProfitSort
+## IconTexture: Interface\AddOns\CommerceAuthority\Media\Icon
+## X-License: MIT
+## X-Website: https://github.com/Tylesser/CommerceAuthority
+
+Tylesser.lua
+Data.lua
+Prices.lua
+Core.lua
+Learn.lua
+Tooltip.lua
+Quests.lua
+Vendor.lua
+Shopping.lua
+Window.lua
+Options.lua
+Events.lua
