@@ -7,6 +7,8 @@
 ## OptionalDeps: Auctionator, TradeSkillMaster, Auc-Advanced, ProfitSort
 ## IconTexture: Interface\AddOns\CommerceAuthority\Media\Icon
 ## X-License: MIT
+## X-Curse-Project-ID: 1808970
+## X-Wago-ID: E6gzrRN1
 ## X-Website: https://github.com/Tylesser/CommerceAuthority
 
 Tylesser.lua
