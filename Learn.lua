@@ -8,6 +8,7 @@ local _, ns = ...
 --   bags are compared with the snapshot; exactly one crate gone = that crate. Learned per crate level and kind
 --   (raw or made goods), the same key the tooltips use.
 -- - Writs: the reputation message within WINDOW seconds of a writ quest's turn-in, in either order.
+--   And who took the writ: the NPC of the turn-in dialog and where you stood (ns.LearnCustomer).
 -- Also keeps this session's totals for the window.
 
 ns.session = { favor = 0, rep = 0, crates = 0, writs = 0, bonuses = 0 }
@@ -103,6 +104,7 @@ function ns.OnQuestComplete()
   end
   dialog = NewTurnIn()
   dialog.before = before
+  dialog.customer = ns.CurrentCustomer() -- the NPC you're talking to, in case this is a writ
 end
 
 local function RecordWritRep(turnIn, amount)
@@ -119,10 +121,11 @@ function ns.OnQuestTurnedIn(questID)
   turnIn.questID = questID
   turnIn.time = Now()
   latest = turnIn
-  local writID = questID and questID + ns.FOREVER_QUEST_OFFSET
+  local writID = ns.WritForQuest(questID)
   if writID and ns.WritTier(writID) then
     turnIn.writ = true
     ns.session.writs = ns.session.writs + 1
+    ns.LearnCustomer(writID, turnIn.customer or ns.CurrentCustomer())
     if pendingRep and turnIn.time - pendingRep.time <= WINDOW then
       RecordWritRep(turnIn, pendingRep.amount)
       pendingRep = nil

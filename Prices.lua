@@ -118,6 +118,14 @@ function ns.Money(amount)
   return table.concat(parts, " ")
 end
 
+-- Like ns.Money, without copper from 1 gold up (for short columns): "4g 10s".
+function ns.ShortMoney(amount)
+  if amount and amount >= 10000 then
+    return ns.Money(math.floor(amount / 100 + 0.5) * 100)
+  end
+  return ns.Money(amount)
+end
+
 -- "1,234"
 function ns.Number(value)
   local text = tostring(math.floor((value or 0) + 0.5))

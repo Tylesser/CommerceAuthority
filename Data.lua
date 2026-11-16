@@ -204,6 +204,147 @@ ns.WRITS = {
 
 ns.FOREVER_WRIT_FIRST, ns.FOREVER_WRIT_LAST = 264011, 264160
 ns.FOREVER_QUEST_OFFSET = 169800
+-- A writ's quest is its item ID - 169800, except these ([writ item ID] = quest ID).
+ns.WRIT_QUEST_EXCEPTIONS = { [264011] = 94004 }
+local writForQuest = {}
+for writID, questID in pairs(ns.WRIT_QUEST_EXCEPTIONS) do
+  writForQuest[questID] = writID
+end
+
+-- The quest a Forever writ starts, or nil for other items.
+function ns.WritQuestID(writID)
+  if not writID or writID < ns.FOREVER_WRIT_FIRST or writID > ns.FOREVER_WRIT_LAST then
+    return nil
+  end
+  return ns.WRIT_QUEST_EXCEPTIONS[writID] or writID - ns.FOREVER_QUEST_OFFSET
+end
+
+-- The writ a quest belongs to, or nil.
+function ns.WritForQuest(questID)
+  if not questID then
+    return nil
+  end
+  local writID = writForQuest[questID] or questID + ns.FOREVER_QUEST_OFFSET
+  if ns.WRIT_QUEST_EXCEPTIONS[writID] and not writForQuest[questID] then
+    return nil -- that ID's writ uses another quest
+  end
+  if writID >= ns.FOREVER_WRIT_FIRST and writID <= ns.FOREVER_WRIT_LAST then
+    return writID
+  end
+end
+
+-- Who takes each writ ("the customer"): [writ item ID] = { NPC name, uiMapID, x, y (0-100) }. Each writ goes to
+-- its own NPC somewhere in the world, not to the trade hub; some NPCs take several writs. From QuestieDB's
+-- WoW Forever data (each writ quest's "finished by" NPC and that NPC's spawn), 95 of the 150 writs, plus 10
+-- from Wowhead's quest pages ("End:" NPC, its spawn from QuestieDB). The other 45 (most Artisan writs) are
+-- learned at the first turn-in (Learn.lua).
+ns.WRIT_CUSTOMERS = {
+  [264011] = { "Sos'mol", 1416, 38.4, 61.1 }, -- Elixir of Ogre's Strength: Alterac Mountains
+  [264012] = { "Muggol Breezebeard", 1417, 48.7, 55.8 }, -- Elixir of Wisdom: Arathi Highlands
+  [264013] = { "Ash'alari", 1440, 60.2, 72.7 }, -- Lesser Mana Potion: Ashenvale
+  [264014] = { "Kzixx", 1431, 81.8, 19.8 }, -- Shadow Protection Potion: Duskwood
+  [264015] = { "Webbed Mudsnout Gnoll", 1424, 62.4, 69.2 }, -- Free Action Potion: Hillsbrad Foothills
+  [264016] = { "Ziz Fizziks", 1442, 59.0, 62.6 }, -- Elixir of Lesser Agility: Stonetalon Mountains
+  [264017] = { "Short John Mithril", 1434, 29.6, 47.4 }, -- Lesser Troll's Blood Elixir: Stranglethorn Vale
+  [264018] = { "Rizzle Brassbolts", 1441, 77.2, 77.4 }, -- Elixir of Defense: Thousand Needles
+  [264019] = { "Kixxle", 1437, 50.2, 37.7 }, -- Draught of Water Breathing: Wetlands
+  [264020] = { "Alan Sneeks", 1416, 30.6, 61.0 }, -- Pearl-Handled Dagger: Alterac Mountains
+  [264021] = { "Muggol Breezebeard", 1417, 48.7, 55.8 }, -- Golden Rod: Arathi Highlands
+  [264022] = { "Cowardly Peon", 1440, 78.5, 68.9 }, -- Iridescent Hammer: Ashenvale
+  [264024] = { "Gorgrash", 1424, 80.0, 48.5 }, -- Heavy Bronze Mace: Hillsbrad Foothills
+  [264025] = { "Ziz Fizziks", 1442, 59.0, 62.6 }, -- Rough Bronze Leggings: Stonetalon Mountains
+  [264026] = { "\"Sea Wolf\" MacKinley", 1434, 27.8, 77.1 }, -- Green Iron Gauntlets: Stranglethorn Vale
+  [264027] = { "\"Plucky\" Johnson", 1441, 79.6, 75.6 }, -- Big Bronze Knife: Thousand Needles
+  [264028] = { "Kixxle", 1437, 50.2, 37.7 }, -- Green Iron Boots: Wetlands
+  [264029] = { "Alan Sneeks", 1416, 30.6, 61.0 }, -- Ornate Spyglass: Alterac Mountains
+  [264030] = { "Alyce", 1417, 34.0, 23.3 }, -- Explosive Sheep: Arathi Highlands
+  [264031] = { "Grembly", 1440, 82.1, 51.0 }, -- Moonsight Rifle: Ashenvale
+  [264032] = { "Kzixx", 1431, 81.8, 19.8 }, -- Minor Recombobulator: Duskwood
+  [264033] = { "Gorgrash", 1424, 80.0, 48.5 }, -- Practice Lock: Hillsbrad Foothills
+  [264034] = { "Ziz Fizziks", 1442, 59.0, 62.6 }, -- Shadow Goggles: Stonetalon Mountains
+  [264035] = { "Scooty", 1434, 27.6, 77.5 }, -- Gnomish Universal Remote: Stranglethorn Vale
+  [264036] = { "Razzeric", 1441, 80.3, 76.1 }, -- Big Bronze Bomb: Thousand Needles
+  [264037] = { "Kixxle", 1437, 50.2, 37.7 }, -- Crafted Solid Shot: Wetlands
+  [264038] = { "Sos'mol", 1416, 38.4, 61.1 }, -- Heavy Leather Ball: Alterac Mountains
+  [264039] = { "Alyce", 1417, 34.0, 23.3 }, -- Fine Leather Pants: Arathi Highlands
+  [264040] = { "Murache", 1440, 64.8, 80.2 }, -- Herbalist's Gloves: Ashenvale
+  [264041] = { "Kzixx", 1431, 81.8, 19.8 }, -- Dark Leather Tunic: Duskwood
+  [264042] = { "Kris Legace", 1424, 80.1, 38.9 }, -- Pilferer's Gloves: Hillsbrad Foothills
+  [264043] = { "Ziz Fizziks", 1442, 59.0, 62.6 }, -- Heavy Quiver: Stonetalon Mountains
+  [264044] = { "Narkk", 1434, 28.1, 74.4 }, -- Dark Leather Shoulders: Stranglethorn Vale
+  [264045] = { "Goblin Pit Boss", 1441, 79.9, 76.7 }, -- Barbaric Gloves: Thousand Needles
+  [264046] = { "Kixxle", 1437, 50.2, 37.7 }, -- Red Whelp Gloves: Wetlands
+  [264047] = { "Alan Sneeks", 1416, 30.6, 61.0 }, -- Lesser Wizard's Robe: Alterac Mountains
+  [264048] = { "Alyce", 1417, 34.0, 23.3 }, -- Blue Overalls: Arathi Highlands
+  [264049] = { "Cowardly Peon", 1440, 78.5, 68.9 }, -- Azure Silk Hood: Ashenvale
+  [264050] = { "Kzixx", 1431, 81.8, 19.8 }, -- Small Silk Pack: Duskwood
+  [264051] = { "Bath'rah the Windwatcher", 1416, 80.5, 66.9 }, -- Phoenix Pants: Alterac Mountains
+  [264052] = { "Ziz Fizziks", 1442, 59.0, 62.6 }, -- Red Woolen Boots: Stonetalon Mountains
+  [264053] = { "Hekshi", 1434, 50.7, 19.3 }, -- Colorful Kilt: Stranglethorn Vale
+  [264054] = { "Magus Tirth", 1441, 78.3, 75.7 }, -- Greater Adept's Robe: Thousand Needles
+  [264055] = { "Kixxle", 1437, 50.2, 37.7 }, -- Spider Silk Slippers: Wetlands
+  [264056] = { "Lotwil Veriatus", 1418, 25.9, 44.9 }, -- Frost Protection Potion: Badlands
+  [264057] = { "Centaur Pariah", 1443, 50.4, 86.7 }, -- Lesser Invisibility Potion: Desolace
+  [264058] = { "Mudcrush Durtfeet", 1445, 35.1, 38.3 }, -- Lesser Stoneshield Potion: Dustwallow Marsh
+  [264059] = { "Greta Mosshoof", 1448, 51.2, 82.1 }, -- Nature Protection Potion: Felwood
+  [264060] = { "Scout Raroul", 1444, 72.4, 52.5 }, -- Catseye Draught: Feralas
+  [264061] = { "Dendrite Starblaze", 1450, 56.2, 30.6 }, -- Great Rage Potion: Moonglade
+  [264062] = { "Spek", 2548, 76.9, 54.1 }, -- Mana Potion: Riverglades
+  [264063] = { "Durganon", 1427, 41.1, 58.3 }, -- Fire Protection Potion: Searing Gorge
+  [264064] = { "Mukomonji", 1435, 62.4, 52.9 }, -- Shadow Oil: Swamp of Sorrows
+  [264065] = { "Alchemist Pestlezugg", 1446, 50.9, 27.0 }, -- Goblin Rocket Fuel: Tanaris
+  [264066] = { "Juo", 1425, 80.1, 55.4 }, -- Elixir of Agility: The Hinterlands
+  [264067] = { "Spark Nilminer", 1449, 43.5, 7.4 }, -- Wildvine Potion: Un'Goro Crater
+  [264068] = { "Furious Shadowforge Digger", 1418, 44.3, 11.4 }, -- Steel Plate Helm: Badlands
+  [264069] = { "Bibbly F'utzbuckle", 1443, 62.3, 39.0 }, -- Inlaid Mithril Cylinder: Desolace
+  [264070] = { "Ugbert", 1445, 41.0, 27.9 }, -- Steel Weapon Chain: Dustwallow Marsh
+  [264072] = { "Scout Raroul", 1444, 72.4, 52.5 }, -- Blue Glittering Axe: Feralas
+  [264073] = { "Meliri", 1450, 51.2, 42.3 }, -- Moonsteel Broadsword: Moonglade
+  [264074] = { "Spek", 2548, 76.9, 54.1 }, -- Golden Scale Coif: Riverglades
+  [264075] = { "Master Smith Burninate", 1427, 38.8, 28.5 }, -- Solid Sharpening Stone: Searing Gorge
+  [264076] = { "Mukomonji", 1435, 62.4, 52.9 }, -- Wicked Mithril Blade: Swamp of Sorrows (Wowhead)
+  [264077] = { "Spigot Operator Luglunket", 1446, 52.5, 28.4 }, -- Truesilver Rod: Tanaris
+  [264078] = { "Gilveradin Sunchaser", 1425, 26.7, 48.6 }, -- Golden Scale Gauntlets: The Hinterlands (Wowhead)
+  [264079] = { "Torwa Pathfinder", 1449, 71.6, 76.0 }, -- Heavy Mithril Axe: Un'Goro Crater (Wowhead)
+  [264080] = { "Garyanne Fleezlebop", 1418, 67.7, 51.7 }, -- Mechanical Dragonling: Badlands
+  [264081] = { "Bibbly F'utzbuckle", 1443, 62.3, 39.0 }, -- Advanced Target Dummy: Desolace
+  [264082] = { "The Ravenous", 1445, 54.0, 56.5 }, -- Craftsman's Monocle: Dustwallow Marsh
+  [264083] = { "Jessir Moonbow", 1448, 51.4, 82.0 }, -- Goblin Land Mine: Felwood
+  [264084] = { "Scout Raroul", 1444, 72.4, 52.5 }, -- Catseye Ultra Goggles: Feralas (Wowhead)
+  [264085] = { "Narianna", 1450, 53.3, 42.7 }, -- Unstable Trigger: Moonglade
+  [264086] = { "Spek", 2548, 76.9, 54.1 }, -- Flash Bomb: Riverglades
+  [264087] = { "Durganon", 1427, 41.1, 58.3 }, -- Fire Goggles: Searing Gorge (Wowhead)
+  [264088] = { "Bullets Bigblast", 1435, 70.0, 41.6 }, -- Mithril Frag Bomb: Swamp of Sorrows
+  [264089] = { "Jhordy Lapforge", 1446, 52.3, 26.9 }, -- Gyromatic Micro-Adjuster: Tanaris
+  [264090] = { "Rhapsody Shindigger", 1425, 26.9, 48.6 }, -- Mechanical Repair Kit: The Hinterlands
+  [264092] = { "Garek", 1418, 61.9, 54.3 }, -- Comfortable Leather Hat: Badlands
+  [264093] = { "Azore Aldamort", 1443, 38.9, 27.2 }, -- Guardian Cloak: Desolace
+  [264094] = { "The Ravenous", 1445, 54.0, 56.5 }, -- Dusky Bracers: Dustwallow Marsh
+  [264095] = { "Ivy Leafrunner", 1448, 51.0, 81.6 }, -- Wild Leather Helmet: Felwood
+  [264096] = { "Scout Raroul", 1444, 72.4, 52.5 }, -- Wild Leather Shoulders: Feralas
+  [264097] = { "Narianna", 1450, 53.3, 42.7 }, -- Quickdraw Quiver: Moonglade
+  [264098] = { "Spek", 2548, 76.9, 54.1 }, -- Swift Boots: Riverglades
+  [264099] = { "Evonice Sootsmoker", 1427, 38.4, 27.7 }, -- Nightscape Shoulders: Searing Gorge
+  [264100] = { "Mukomonji", 1435, 62.4, 52.9 }, -- Big Voodoo Mask: Swamp of Sorrows
+  [264101] = { "Yeh'kinya", 1446, 67.0, 22.4 }, -- Big Voodoo Robe: Tanaris
+  [264102] = { "Juo", 1425, 80.1, 55.4 }, -- Turtle Scale Breastplate: The Hinterlands
+  [264103] = { "Nergal", 1449, 43.3, 7.7 }, -- Thick Leather Ammo Pouch: Un'Goro Crater
+  [264104] = { "Rigglefuzz", 1418, 42.4, 52.9 }, -- Mageweave Bag: Badlands
+  [264105] = { "Willow", 1443, 62.2, 39.6 }, -- Shadoweave Gloves: Desolace (Wowhead)
+  [264106] = { "Tabetha", 1445, 46.1, 57.1 }, -- Crimson Silk Robe: Dustwallow Marsh
+  [264107] = { "Eridan Bluewind", 1448, 51.4, 81.5 }, -- Shadoweave Robe: Felwood
+  [264108] = { "Impsy", 1448, 41.4, 45.0 }, -- Enchanted Mageweave Pouch: Felwood
+  [264109] = { "Mylentha Riverbend", 1450, 51.8, 32.6 }, -- Star Belt: Moonglade (Wowhead)
+  [264110] = { "Spek", 2548, 76.9, 54.1 }, -- Black Mageweave Vest: Riverglades
+  [264111] = { "Lookout Captain Lolo Longstriker", 1427, 37.7, 26.6 }, -- Red Mageweave Pants: Searing Gorge
+  [264112] = { "Bullets Bigblast", 1435, 70.0, 41.6 }, -- Orange Martial Shirt: Swamp of Sorrows
+  [264113] = { "Vizzklick", 1446, 51.0, 27.4 }, -- White Bandit Mask: Tanaris
+  [264114] = { "Atal'ai Exile", 1425, 33.8, 75.2 }, -- Cindercloth Robe: The Hinterlands
+  [264115] = { "Petra Grossen", 1449, 43.7, 7.2 }, -- Earthen Silk Belt: Un'Goro Crater
+  [264119] = { "Hastings", 1430, 47.0, 75.4 }, -- Draught of Detect Demon: Deadwind Pass (Wowhead)
+  [264124] = { "Bor'dorc", 1452, 65.2, 33.3 }, -- Distilled Firewater: Winterspring (Wowhead; middle of its spawns)
+  [264150] = { "Fallen Adventurer", 1422, 37.7, 73.1 }, -- Runic Leather Bracers: Western Plaguelands (Wowhead; middle of its spawns)
+}
 
 -- Writ levels and reputation. The Forever writ IDs come in three blocks (each block alchemy, blacksmithing,
 -- engineering, leatherworking, tailoring), matching the guides' examples: Blue Overalls (Journeyman),

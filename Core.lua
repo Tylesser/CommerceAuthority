@@ -8,10 +8,12 @@ ns.defaults = {
   performanceBonus = false, -- you have the Performance Bonus legacy talent
   diplomat = false,         -- you have the Diplomat legacy talent
   onlyMyProfessions = false, -- the window's cheapest list: only writs your professions make
+  cheapestBy = nil,         -- the window's cheapest list: "writ", "npc" or "zone" (nil: writ; ns.CheapestMode)
   position = nil,           -- the window's position
   learned = {
     crates = {},            -- [level .. " raw"/" made"] = { n, total, min, max, last, values }: Favor per turn-in
     writs = {},             -- [writ quest ID] = { n, total, min, max, last, values }: reputation per turn-in
+    customers = {},         -- [writ item ID] = { NPC name, uiMapID, x, y }: who took the writ, where
   },
   factionIDs = {},          -- [Alliance/Horde] = the faction's ID, once found in the reputation list
 }
@@ -266,7 +268,7 @@ end
 function ns.WritCount(writID, writ)
   local getObjectives = C_QuestLog and C_QuestLog.GetQuestObjectives
   if getObjectives and writID >= ns.FOREVER_WRIT_FIRST then
-    local ok, objectives = pcall(getObjectives, writID - ns.FOREVER_QUEST_OFFSET)
+    local ok, objectives = pcall(getObjectives, ns.WritQuestID(writID))
     if ok and type(objectives) == "table" then
       for _, objective in ipairs(objectives) do
         if objective.type == "item" and (objective.numRequired or 0) > 0 then
@@ -293,7 +295,7 @@ function ns.WritReputation(writID)
   if not tier then
     return nil, false, nil
   end
-  local seen = DB().learned.writs[writID - ns.FOREVER_QUEST_OFFSET]
+  local seen = DB().learned.writs[ns.WritQuestID(writID) or 0]
   local usual = ns.UsualValue(seen)
   if usual then
     return usual, true, tier
@@ -525,4 +527,97 @@ function ns.CheapestWrits(max)
     result[index] = cache.list[index]
   end
   return result
+end
+
+-- The cheapest NPCs to deliver to: for each customer, the priced writs it takes that you don't hold yet, and
+-- what buying them all costs per 100 reputation (one shopping list, one trip).
+-- { { customer, writs = { cheapest-list entries }, total, rep, per100, have (writs of theirs you hold) }, ... },
+-- cheapest first, at most `max`. Follows onlyMyProfessions like ns.CheapestWrits.
+function ns.CheapestCustomers(max, counts)
+  counts = counts or ns.BagCounts()
+  local groups, byKey = {}, {}
+  for _, entry in ipairs(ns.CheapestWrits()) do
+    local customer = ns.WritCustomer(entry.writID)
+    if customer and (counts[entry.writID] or 0) == 0 then
+      local key = ns.CustomerKey(customer)
+      local group = byKey[key]
+      if not group then
+        group = { customer = customer, writs = {}, total = 0, rep = 0, have = 0 }
+        byKey[key] = group
+        groups[#groups + 1] = group
+      end
+      group.writs[#group.writs + 1] = entry
+      group.total = group.total + entry.total
+      group.rep = group.rep + entry.rep
+    end
+  end
+  for _, group in ipairs(groups) do
+    group.per100 = group.total / group.rep * 100
+    for _, writID in ipairs(ns.CustomerWrits(group.customer)) do
+      if (counts[writID] or 0) > 0 then
+        group.have = group.have + 1
+      end
+    end
+  end
+  table.sort(groups, function(a, b)
+    if a.per100 ~= b.per100 then
+      return a.per100 < b.per100
+    end
+    return #a.writs > #b.writs
+  end)
+  local result = {}
+  for index = 1, math.min(max or #groups, #groups) do
+    result[index] = groups[index]
+  end
+  return result
+end
+
+-- Which ranking the window's cheapest list shows: "writ", "npc" or "zone". (Before zones it was the
+-- cheapestByNPC check box.)
+function ns.CheapestMode()
+  local db = DB()
+  return db.cheapestBy or (db.cheapestByNPC and "npc") or "writ"
+end
+
+function ns.SetCheapestMode(mode)
+  if CommerceAuthorityDB then
+    CommerceAuthorityDB.cheapestBy = mode
+    CommerceAuthorityDB.cheapestByNPC = nil
+  end
+end
+
+-- The cheapest zones to go to: every NPC of ns.CheapestCustomers grouped by zone, with all their priced writs.
+-- { { mapID, name, npcs = { NPC groups, cheapest first }, writs = { cheapest-list entries }, total, rep, per100,
+-- have }, ... }, cheapest per 100 reputation first, at most `max`.
+function ns.CheapestZones(max, counts)
+  local zones, byMap = {}, {}
+  for _, group in ipairs(ns.CheapestCustomers(nil, counts)) do
+    local mapID = group.customer.mapID
+    local zone = byMap[mapID]
+    if not zone then
+      zone = { mapID = mapID, name = ns.MapName(mapID), npcs = {}, writs = {}, total = 0, rep = 0, have = 0 }
+      byMap[mapID] = zone
+      zones[#zones + 1] = zone
+    end
+    zone.npcs[#zone.npcs + 1] = group
+    for _, entry in ipairs(group.writs) do
+      zone.writs[#zone.writs + 1] = entry
+    end
+    zone.total = zone.total + group.total
+    zone.rep = zone.rep + group.rep
+    zone.have = zone.have + group.have
+  end
+  for _, zone in ipairs(zones) do
+    zone.per100 = zone.total / zone.rep * 100
+  end
+  table.sort(zones, function(a, b)
+    if a.per100 ~= b.per100 then
+      return a.per100 < b.per100
+    end
+    return #a.writs > #b.writs
+  end)
+  for index = (max or #zones) + 1, #zones do
+    zones[index] = nil
+  end
+  return zones
 end

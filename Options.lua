@@ -74,7 +74,9 @@ function ns.CreateOptions()
   local forget = ns.T.Button(panel, 160, 24, "Forget what was learned")
   forget:SetPoint("LEFT", open, "RIGHT", 12, 0)
   forget:SetScript("OnClick", function()
-    CommerceAuthorityDB.learned = { crates = {}, writs = {} }
+    -- who takes each writ is a fact seen in the game, not an estimate: kept
+    local customers = CommerceAuthorityDB.learned.customers or {}
+    CommerceAuthorityDB.learned = { crates = {}, writs = {}, customers = customers }
     ns.InvalidateCheapest()
     print(ns.T.Prefix("Commerce Authority") .. "learned turn-in amounts cleared; the guides' numbers are used again.")
     ns.RefreshWindow()
@@ -83,7 +85,7 @@ function ns.CreateOptions()
     GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
     GameTooltip:AddLine("Forget what was learned")
     GameTooltip:AddLine("The addon remembers the Merchant's Favor and reputation each crate and writ gave you. "
-      .. "Clear them to go back to the guides' numbers.", 1, 1, 1, true)
+      .. "Clear them to go back to the guides' numbers. Who takes each writ is kept.", 1, 1, 1, true)
     GameTooltip:Show()
   end)
   forget:SetScript("OnLeave", function()

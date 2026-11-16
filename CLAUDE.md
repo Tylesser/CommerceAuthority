@@ -17,6 +17,18 @@ Durotar Supply and Logistics (Horde, west of the Crossroads), currency Merchant'
     (Catseye Draught, Gyromatic Micro-Adjuster, Potion of Demonslaying, Draught of Detect Demon, Gnomish
     Alarm-O-Bot), resolved in game with `GetItemInfo(name)`. Items 264201-264231 are in Auctionator data too, names
     unknown.
+  - Writ quest = item ID - 169800, except `ns.WRIT_QUEST_EXCEPTIONS` (Elixir of Ogre's Strength 264011 -> quest
+    94004; there is no quest 94211). Always go through `ns.WritQuestID` / `ns.WritForQuest`.
+  - `ns.WRIT_CUSTOMERS[writItemID] = { npcName, uiMapID, x, y }`: who takes each writ. Every writ has its own
+    "customer" NPC somewhere in the world (not the trade hub; the hub's profession NPCs are vendors). Built from
+    QuestieDB's Forever data in the game folder (`QuestieDB_Forever.toc`, CBOR in base64 `## X-Quest-<id>-3`
+    = finishedBy, `## X-Npc-<id>-7` = spawns by area ID, `-S` key 1 = name; area IDs to uiMapIDs from
+    `support/Forever/Zones/areaIdToUiMapId.lua`): 95 of 150. 10 more (2026-11-16) from Wowhead's Forever quest
+    pages ("End:" in Quick Facts), read through the user's Chrome on a VPN (Wowhead is blocked in their country
+    and answers 403 to Claude's servers; fast fetches bring a CAPTCHA, so go one page at a time). The other 45
+    (mostly Artisan) were unknown on both; Potion of Demonslaying shows only "Start: Archmage Xylem" (left out).
+    Rebuild with `E:/Games/Wow/tools/data` (see its README) when QuestieDB grows; the 10 Wowhead entries are
+    marked "(Wowhead)" in Data.lua and must be kept when pasting a rebuilt table.
   - `ns.WRIT_TIERS`: the Forever IDs come in three blocks (Journeyman to 264055: 75 rep, Expert to 264115: 125,
     Artisan to 264160: 200), confirmed by the Mobalytics guide's examples. Inside each block the professions run
     Alchemy, Blacksmithing, Engineering, Leatherworking, Tailoring (`ns.WRIT_PROFESSIONS`, from NeedRoll's recipe
@@ -39,17 +51,25 @@ Durotar Supply and Logistics (Horde, west of the Crossroads), currency Merchant'
   where 3402 may be another currency), the faction of the player's side (looked up by name in the reputation list
   first; the ID saved per side in `factionIDs` only for collapsed headers, because the ID APIs also answer for
   factions you aren't on), professions (`GetProfessions` or the skill list), writ reputation/cost, crate info and
-  fill options, bag counts, `ns.CheapestWrits` (cached 10 s; `ns.InvalidateCheapest`). Learned amounts are read
-  with `ns.UsualValue` (most common value seen).
+  fill options, bag counts, `ns.CheapestWrits` (cached 10 s; `ns.InvalidateCheapest`), `ns.CheapestCustomers`
+  (the cheapest list grouped by customer, minus writs in your bags: all priced writs averaged, which the user
+  wants kept), `ns.CheapestZones` (those NPCs grouped by map); the window's ranking button `ns.CheapestMode()`
+  (`cheapestBy` writ/npc/zone; the old `cheapestByNPC` is still read). Learned amounts are read with `ns.UsualValue` (most
+  common value seen).
 - `Learn.lua`: learns real amounts; each turn-in is its own record with its own bag snapshot (QUEST_COMPLETE) and
   timer. Favor arriving while the dialog is open or up to 3 s after QUEST_TURNED_IN is that turn-in's; it is
   resolved 3 s later or when the next dialog opens (whose bags are its "after"), and only when exactly one crate
   kind left the bags. Learned per `level .. " raw"/" made"` (the key tooltips use). Double the usual amount counts
   as a Performance Bonus only with that option on. Writs: the faction chat message within 3 s of a writ quest's
   turn-in, either order (held as pending otherwise). The starting Favor is taken 5 s after PLAYER_ENTERING_WORLD
-  (or by the first currency event), never counted as a gain. Stored in `CommerceAuthorityDB.learned`.
+  (or by the first currency event), never counted as a gain. At a writ's turn-in it also stores the dialog's NPC
+  and your map position as that writ's customer (`learned.customers`, kept by "Forget what was learned").
+  Stored in `CommerceAuthorityDB.learned`.
 - `Tooltip.lua`: writ, sealed writ and crate lines; TooltipDataProcessor or OnTooltipSetItem; skips compare tooltips.
-- `Quests.lua`: writ quests in the log (`C_QuestLog.GetInfo` or `GetQuestLogTitle`) and `ns.SetWritWaypoint`
+- `Quests.lua`: customers (`ns.WritCustomer`: learned first, then the built-in list; `ns.CustomerWrits`;
+  `ns.HeldWrits` (writs in your bags and quest log); `ns.Deliveries` groups them by customer for the window;
+  `ns.CustomerDirectory` lists every customer with all its writs for NPCs.lua), writ quests in the log
+  (`C_QuestLog.GetInfo` or `GetQuestLogTitle`) and `ns.SetWritWaypoint`
   (`C_QuestLog.GetNextWaypoint`, else the quest's pin from `GetQuestsOnMap`; TomTom or `C_Map.SetUserWaypoint` +
   super-track; without a spot it tracks the quest and opens the map).
 - `Vendor.lua`: marks on merchant rows for items costing Merchant's Favor (`GetMerchantItemCostItem`, currency link)
@@ -57,9 +77,17 @@ Durotar Supply and Logistics (Horde, west of the Crossroads), currency Merchant'
   when it filters; updated again next frame after other addons lay the page out.
 - `Shopping.lua`: `/aca buy`, the Auctionator shopping list "Commerce Authority" (`ConvertToSearchString` with
   `isExact` and `quantity`, `CreateShoppingList`): cheapest writs up to the next standing (max 20) and the items to
-  buy for them.
+  buy for them; `ns.CreateCustomerBuyList(group)` / `ns.CreateZoneBuyList(zone)` put one NPC's or zone's writs on
+  it instead (By NPC / By zone rows). `ns.SetZoneWaypoints` (Quests.lua): TomTom pins every NPC of a zone, the
+  game's single pin only the first. `ns.SearchWrits(writIDs, held)`: clicks while the AH is open
+  (`ns.AuctionHouseOpen`) search the writs you don't hold and the items not-ready ones need, with Auctionator's
+  `MultiSearchExact` (its Shopping tab), else the game's search box (`AuctionHouseFrame.SearchBar`, or the legacy
+  `BrowseName`) with the first name.
 - `Window.lua`: the `/aca` window (`CommerceAuthorityWindow`, in UISpecialFrames so Esc closes it); refreshes go
   through `ns.RequestRefresh` (at most twice a second, only while shown).
+- `NPCs.lua`: the Writ NPCs window (`/aca npcs`, "All NPCs" button; `CommerceAuthorityNPCWindow`, position in
+  `npcPosition`): flat lines (zone header, NPC header, its writs, then "NPC not known yet" and those writs) shown in fixed rows
+  scrolled with the mouse wheel; search box (`InputBoxTemplate` + `T.EditBox`). Refreshed by `ns.RequestRefresh`.
 - `Options.lua`: options page. `Events.lua`: events and `/aca` `/commerce` (`options`, `debug`, `feedback`).
 
 Tests: `tools/harness/ca_test.lua` (`node run.js ca_test.lua E:/Games/Wow/Addons/CommerceAuthority`).
@@ -72,3 +100,5 @@ Tests: `tools/harness/ca_test.lua` (`node run.js ca_test.lua E:/Games/Wow/Addons
 - Whether `C_QuestLog.GetNextWaypoint` or `GetQuestsOnMap` know the writ delivery spots on Forever.
 - Where the vendor mark sits on the merchant row, next to Vendor Search's own marks.
 - The faction chat message format on Forever, and whether writs ask for more than 1 item.
+- Customers: whether the QuestieDB NPCs and spots are right, and whether `UnitName("npc")` and the player's map
+  position at QUEST_COMPLETE give the customer (learned per writ in `learned.customers`).

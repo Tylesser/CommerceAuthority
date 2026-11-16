@@ -80,6 +80,16 @@ local function Debug()
   table.sort(professions)
   print("  Professions: " .. (#professions > 0 and table.concat(professions, ", ") or "none found"))
   print(("  Writ quests: %d"):format(#ns.ActiveWrits()))
+  local builtIn, learned = 0, 0
+  for writID = ns.FOREVER_WRIT_FIRST, ns.FOREVER_WRIT_LAST do
+    local customer = ns.WritCustomer(writID)
+    if customer and customer.learned then
+      learned = learned + 1
+    elseif customer then
+      builtIn = builtIn + 1
+    end
+  end
+  print(("  Writ customers known: %d built in, %d seen at your turn-ins"):format(builtIn, learned))
   local summary = ns.BagSummary()
   print(("  Bags: %d writs (%d rep), %d sealed writs, %d filled crates (%d Favor), %d crates to fill"):format(
     summary.writs, summary.writRep, summary.sealedWrits, summary.crates, summary.crateFavor, summary.toFill))
@@ -104,6 +114,8 @@ SlashCmdList.COMMERCEAUTHORITY = function(msg)
     ns.OpenOptions()
   elseif command == "buy" then
     ns.CreateBuyList()
+  elseif command == "npcs" or command == "npc" then
+    ns.ToggleNPCWindow()
   elseif command == "feedback" then
     ns.T.ShowFeedback()
   elseif command == "debug" then
@@ -112,6 +124,7 @@ SlashCmdList.COMMERCEAUTHORITY = function(msg)
     print(PREFIX .. "commands")
     print("  /aca: show or hide the window")
     print("  /aca options: open the options")
+    print("  /aca npcs: every NPC who takes writs, with all its writs and which you have")
     print("  /aca buy: Auctionator shopping list of the cheapest writs to your next standing")
     print("  /aca debug: what the addon sees (faction, Favor, price addons, bags)")
     print("  /aca feedback: report a bug or suggest an idea")

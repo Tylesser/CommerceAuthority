@@ -39,8 +39,8 @@ end
 
 local function Lines()
   local lines = {}
-  local function Add(text, color)
-    lines[#lines + 1] = { text, color[1], color[2], color[3] }
+  local function Add(text, color, wrap)
+    lines[#lines + 1] = { text, color[1], color[2], color[3], wrap }
   end
   return lines, Add
 end
@@ -95,7 +95,33 @@ function ns.WritTooltipLines(writID)
     Add(("  With the writ (%s): %s, %s per 100 reputation"):format(ns.Money(writPrice), ns.Money(total),
       ns.Money(per100)), GREEN)
   end
+  ns.CustomerTooltipLines(writID, Add)
   return lines
+end
+
+-- Who takes the writ, and the other writs that NPC takes (so one trip delivers them all).
+function ns.CustomerTooltipLines(writID, Add)
+  if not ns.WritTier(writID) then
+    return
+  end
+  local customer = ns.WritCustomer(writID)
+  if not customer then
+    Add("  Deliver to: not known yet. Use the writ and the game marks the spot on your map.", GREY, true)
+    return
+  end
+  Add("  Deliver to " .. ns.CustomerText(customer), WHITE)
+  local others = {}
+  local counts
+  for _, otherID in ipairs(ns.CustomerWrits(customer)) do
+    if otherID ~= writID then
+      counts = counts or ns.BagCounts()
+      local name = ns.Writ(otherID)[3]
+      others[#others + 1] = (counts[otherID] or 0) > 0 and (name .. " |cff40ff40(you have it)|r") or name
+    end
+  end
+  if #others > 0 then
+    Add(("  %s also takes: %s"):format(customer.name, table.concat(others, ", ")), GREY, true)
+  end
 end
 
 -- Lines for "Sealed Expert's Writ" and the like, or nil.
@@ -246,7 +272,7 @@ local function AddLines(tooltip, data)
   if lines and #lines > 0 then
     added[tooltip] = true
     for _, line in ipairs(lines) do
-      tooltip:AddLine(line[1], line[2], line[3], line[4])
+      tooltip:AddLine(line[1], line[2], line[3], line[4], line[5])
     end
     tooltip:Show()
   end
