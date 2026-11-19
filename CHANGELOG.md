@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.2.0
+
+- Writ NPCs window: a writ level button (all, Journeyman, Expert, Artisan), a "My professions" filter and a "Not done today" filter (every writ can be turned in once a day; writs you turned in today say "done today"); zones fold with the button on their line (or a click on the zone away from the auction house), and "Fold all" folds or unfolds every zone. Your filters and folded zones are kept.
+- 8 more writs name who takes them: Silver Skeleton Key, Ornate Mithril Shoulders, Potion of Demonslaying, Dreamless Sleep Potion, Greater Fire Protection Potion, Gift of Arthas, Limited Invulnerability Potion and Major Rejuvenation Potion.
+- The Performance Bonus and Diplomat legacy talents are detected: the two check boxes are gone, and the options page shows which of them you have.
+- Check boxes react only over their own label: hovering "Not done today" no longer lit "My professions".
+
 ## 1.1.0
 
 - **Who takes each writ**: writ tooltips name the NPC the writ is delivered to, where it stands, and the other writs that NPC takes (marked when you have them), so you can collect them and deliver them all in one trip. Known for 105 of the 150 writs; the rest are learned at your first turn-in.

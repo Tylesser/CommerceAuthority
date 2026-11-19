@@ -68,7 +68,7 @@ local function RecordCrateFavor(crate, gained)
   local seen = Learned().crates[crate.key]
   local usual = ns.UsualValue(seen)
   -- Twice the usual amount with the Performance Bonus talent: the bonus. Counted, not stored as usual.
-  if CommerceAuthorityDB.performanceBonus and usual and gained >= usual * 2 then
+  if ns.HasPerformanceBonus() and usual and gained >= usual * 2 then
     ns.session.bonuses = ns.session.bonuses + 1
     Learned().bonuses = (Learned().bonuses or 0) + 1
   else

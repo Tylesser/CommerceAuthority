@@ -3,19 +3,48 @@ local _, ns = ...
 -- The Writ NPCs window (/aca npcs, or "All NPCs" in the main window): every NPC who takes Craftsman's Writs,
 -- grouped by zone, with all the writs it takes and which of them you hold, so you can collect the writs of a
 -- zone's NPCs and deliver them in one trip. Then the writs whose NPC isn't known yet. A search box filters by
--- NPC, zone or writ.
+-- NPC, zone or writ; a row under it filters by writ level and your professions. Zones (and the "not known yet"
+-- group) fold with the button on their line, or a click on it away from the auction house.
 
 local WIDTH = 440
 local HEIGHT = 540
 local PAD = 16
 local INNER = WIDTH - PAD * 2
 local ROW_HEIGHT = 16
-local TOP = 98 -- where the list starts, below the search box and summary
+local TOP = 124 -- where the list starts, below the search box, the filter row and the summary
+local LEVELS = { false, "Journeyman", "Expert", "Artisan" } -- the level button's steps (false: every level)
 local ROWS = math.floor((HEIGHT - TOP - 32) / ROW_HEIGHT)
 local frame
 local lines = {}
 local held = {} -- the writs you hold (ns.HeldWrits), as of the last rebuild
 local offset = 0
+
+local function DB()
+  return CommerceAuthorityDB or ns.defaults
+end
+
+-- Folded zones (by map ID, and "unknown" for the writs with no known NPC), kept between sessions.
+local function Folded(key)
+  return DB().npcFolded ~= nil and DB().npcFolded[key] == true
+end
+
+local function ToggleFold(key)
+  local db = CommerceAuthorityDB
+  if not db then
+    return
+  end
+  db.npcFolded = db.npcFolded or {}
+  db.npcFolded[key] = not Folded(key) or nil
+  ns.RefreshNPCWindow()
+end
+
+local function FoldKey(line)
+  if line.kind == "zone" then
+    return line.zone.mapID
+  elseif line.kind == "unknown" then
+    return "unknown"
+  end
+end
 
 local function Text(parent, template)
   local text = parent:CreateFontString(nil, "OVERLAY", template or "GameFontHighlightSmall")
@@ -54,6 +83,9 @@ local function WritState(writID, held)
       return "|cff40ff40yours, ready|r"
     end
     return mine.questID and "|cffffd100yours, needs the item|r" or "|cffffffffyours, not opened|r"
+  end
+  if ns.WritDoneToday(writID) then
+    return "|cff999999done today|r"
   end
   local total = ns.WritCost(writID)
   return total and ("|cff999999%s|r"):format(ns.Money(total)) or "|cff666666no AH price|r"
@@ -122,6 +154,15 @@ local function Row()
       ns.SetCustomerWaypoint(line.group.customer)
     end
   end)
+  row.fold = CreateFrame("Button", nil, row)
+  row.fold:SetSize(14, 14)
+  row.fold:SetPoint("LEFT", 0, 0)
+  row.fold:SetScript("OnClick", function()
+    local key = row.line and FoldKey(row.line)
+    if key then
+      ToggleFold(key)
+    end
+  end)
   row.name = Text(row)
   row.name:SetWordWrap(false)
   row.state = Text(row)
@@ -141,6 +182,10 @@ local function Row()
       return
     end
     if not ns.AuctionHouseOpen() then
+      local key = FoldKey(line)
+      if key then
+        ToggleFold(key) -- away from the auction house a zone line folds
+      end
       return
     end
     local writIDs = {}
@@ -160,14 +205,27 @@ local function Row()
   return row
 end
 
+local function ShowFold(row, key)
+  if not key then
+    row.fold:Hide()
+    return
+  end
+  local folded = Folded(key)
+  row.fold:SetNormalTexture(folded and "Interface\\Buttons\\UI-PlusButton-Up" or "Interface\\Buttons\\UI-MinusButton-Up")
+  row.fold:SetHighlightTexture("Interface\\Buttons\\UI-PlusButton-Hilight", "ADD")
+  row.fold.folded = folded
+  row.fold:Show()
+end
+
 local function ShowLine(row, line, held)
   row.line = line
   row.name:ClearAllPoints()
   row.state:ClearAllPoints()
+  ShowFold(row, FoldKey(line))
   if line.kind == "zone" then
     local zone = line.zone
     row.way:Show()
-    row.name:SetPoint("LEFT", 2, 0)
+    row.name:SetPoint("LEFT", 18, 0)
     row.name:SetPoint("RIGHT", -206, 0)
     row.name:SetText(("|cffff9933%s|r |cff999999%d NPC%s|r"):format(zone.name, #zone.npcs,
       #zone.npcs == 1 and "" or "s"))
@@ -191,7 +249,7 @@ local function ShowLine(row, line, held)
     row.state:SetText(WritState(line.writID, held))
   else
     row.way:Hide()
-    row.name:SetPoint("LEFT", 2, 0)
+    row.name:SetPoint("LEFT", 18, 0)
     row.name:SetPoint("RIGHT", -2, 0)
     row.name:SetText(("|cffffd100NPC not known yet|r |cff999999(%d writs)|r"):format(line.count))
     row.state:SetPoint("RIGHT", -2, 0)
@@ -264,8 +322,83 @@ local function Create()
   end)
   frame.search = search
 
+  local level = T.Button(frame, 96, 20, "All levels")
+  level:SetPoint("TOPLEFT", PAD, -72)
+  level:SetScript("OnClick", function()
+    local db = CommerceAuthorityDB
+    local current = 1
+    for index, name in ipairs(LEVELS) do
+      if (name or nil) == db.npcTier then
+        current = index
+      end
+    end
+    db.npcTier = LEVELS[current % #LEVELS + 1] or nil
+    offset = 0
+    ns.RefreshNPCWindow()
+  end)
+  level:SetScript("OnEnter", function(self)
+    GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+    GameTooltip:AddLine("Writ level")
+    GameTooltip:AddLine("Click to show every level, or only Journeyman, Expert or Artisan writs.", 1, 1, 1, true)
+    GameTooltip:Show()
+  end)
+  level:SetScript("OnLeave", HideTooltip)
+  frame.level = level
+  local mine = T.Check(frame, "My professions", "GameFontHighlightSmall")
+  mine:SetPoint("LEFT", level, "RIGHT", 10, 0)
+  mine:SetScript("OnClick", function(self)
+    CommerceAuthorityDB.npcMine = self:GetChecked() and true or false
+    offset = 0
+    ns.RefreshNPCWindow()
+  end)
+  ns.FitCheck(mine)
+  frame.mine = mine
+  local notDone = T.Check(frame, "Not done today", "GameFontHighlightSmall")
+  notDone:SetPoint("LEFT", mine.label or mine.Text or mine, "RIGHT", 8, 0)
+  notDone:SetScript("OnClick", function(self)
+    CommerceAuthorityDB.npcNotDone = self:GetChecked() and true or false
+    offset = 0
+    ns.RefreshNPCWindow()
+  end)
+  notDone:SetScript("OnEnter", function(self)
+    GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+    GameTooltip:AddLine("Not done today")
+    GameTooltip:AddLine("Every writ can be turned in once a day: show only the ones you haven't turned in since the "
+      .. "daily reset.", 1, 1, 1, true)
+    GameTooltip:Show()
+  end)
+  notDone:SetScript("OnLeave", function()
+    GameTooltip:Hide()
+  end)
+  ns.FitCheck(notDone)
+  frame.notDone = notDone
+  local foldAll = T.Button(frame, 80, 20, "Fold all")
+  foldAll:SetPoint("TOPRIGHT", -PAD, -72)
+  foldAll:SetScript("OnClick", function()
+    local db = CommerceAuthorityDB
+    local anyOpen = false
+    for _, line in ipairs(lines) do
+      local key = FoldKey(line)
+      if key and not Folded(key) then
+        anyOpen = true
+      end
+    end
+    db.npcFolded = {}
+    if anyOpen then
+      for _, line in ipairs(lines) do
+        local key = FoldKey(line)
+        if key then
+          db.npcFolded[key] = true
+        end
+      end
+    end
+    offset = 0
+    ns.RefreshNPCWindow()
+  end)
+  frame.foldAll = foldAll
+
   frame.summary = Text(frame)
-  frame.summary:SetPoint("TOPLEFT", PAD, -74)
+  frame.summary:SetPoint("TOPLEFT", PAD, -100)
   frame.summary:SetPoint("RIGHT", -PAD, 0)
   frame.summary:SetWordWrap(false)
 
@@ -297,17 +430,27 @@ function ns.RefreshNPCWindow(keep)
     return
   end
   if not keep then
+    local db = DB()
     local text = frame.search:GetText() or ""
-    local directory = ns.CustomerDirectory(nil, text:lower():match("^%s*(.-)%s*$"))
+    local directory = ns.CustomerDirectory(nil, text:lower():match("^%s*(.-)%s*$"),
+      { tier = db.npcTier, mine = db.npcMine, notDone = db.npcNotDone })
+    frame.level:SetText(db.npcTier or "All levels")
+    frame.mine:SetChecked(db.npcMine and true or false)
+    frame.notDone:SetChecked(db.npcNotDone and true or false)
     held = directory.held
     lines = {}
     local writs, mine = 0, 0
+    local anyOpen = false
     for _, zone in ipairs(directory.zones) do
       lines[#lines + 1] = { kind = "zone", zone = zone }
+      local folded = Folded(zone.mapID)
+      anyOpen = anyOpen or not folded
       for _, group in ipairs(zone.npcs) do
-        lines[#lines + 1] = { kind = "npc", group = group }
-        for _, writID in ipairs(group.writs) do
-          lines[#lines + 1] = { kind = "writ", writID = writID, group = group }
+        if not folded then
+          lines[#lines + 1] = { kind = "npc", group = group }
+          for _, writID in ipairs(group.writs) do
+            lines[#lines + 1] = { kind = "writ", writID = writID, group = group }
+          end
         end
         writs = writs + #group.writs
         mine = mine + group.held
@@ -315,13 +458,18 @@ function ns.RefreshNPCWindow(keep)
     end
     if #directory.unknown > 0 then
       lines[#lines + 1] = { kind = "unknown", count = #directory.unknown }
+      local folded = Folded("unknown")
+      anyOpen = anyOpen or not folded
       for _, writID in ipairs(directory.unknown) do
-        lines[#lines + 1] = { kind = "writ", writID = writID }
+        if not folded then
+          lines[#lines + 1] = { kind = "writ", writID = writID }
+        end
         if held[writID] then
           mine = mine + 1
         end
       end
     end
+    frame.foldAll:SetText(anyOpen and "Fold all" or "Unfold all")
     frame.summary:SetText(("%d NPCs in %d zones take %d writs; %d with no known NPC. You hold %d."):format(
       #directory.npcs, #directory.zones, writs, #directory.unknown, mine))
     offset = math.min(offset, math.max(#lines - ROWS, 0))

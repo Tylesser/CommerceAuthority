@@ -9,7 +9,8 @@ eventFrame:RegisterEvent("PLAYER_ENTERING_WORLD")
 -- Events registered after setup; pcall because not every client has every event.
 local EVENTS = {
   "QUEST_COMPLETE", "QUEST_TURNED_IN", "CURRENCY_DISPLAY_UPDATE", "CHAT_MSG_COMBAT_FACTION_CHANGE",
-  "BAG_UPDATE_DELAYED", "UPDATE_FACTION", "QUEST_LOG_UPDATE", "SKILL_LINES_CHANGED",
+  "BAG_UPDATE_DELAYED", "UPDATE_FACTION", "QUEST_LOG_UPDATE", "SKILL_LINES_CHANGED", "SPELLS_CHANGED",
+  "TRAIT_CONFIG_UPDATED",
 }
 
 local function Setup()
@@ -52,7 +53,7 @@ eventFrame:SetScript("OnEvent", function(self, event, ...)
   elseif event == "CHAT_MSG_COMBAT_FACTION_CHANGE" then
     ns.OnRepMessage((...))
   else
-    if event == "SKILL_LINES_CHANGED" then
+    if event == "SKILL_LINES_CHANGED" or event == "SPELLS_CHANGED" or event == "TRAIT_CONFIG_UPDATED" then
       ns.InvalidateCheapest()
     end
     ns.RequestRefresh()
@@ -100,6 +101,8 @@ local function Debug()
   for _ in pairs(CommerceAuthorityDB.learned.writs) do
     writs = writs + 1
   end
+  print(("  Legacy talents: Performance Bonus %s, Diplomat %s"):format(
+    ns.HasPerformanceBonus() and "yes" or "no", ns.HasDiplomat() and "yes" or "no"))
   print(("  Learned: %d crate kinds, %d writs, %d Performance Bonuses seen"):format(crates, writs,
     CommerceAuthorityDB.learned.bonuses or 0))
 end

@@ -259,8 +259,32 @@ end
 -- writs come first, then by name.
 -- `search` (lower case) keeps NPCs whose name or zone matches, or their matching writs. NPCs you hold writs
 -- for come first (most first), then by zone and name.
-function ns.CustomerDirectory(counts, search)
+-- Whether you turned the writ in today: every writ is a daily quest, flagged completed until the daily reset.
+function ns.WritDoneToday(writID)
+  local questID = ns.WritQuestID(writID)
+  local flagged = C_QuestLog and C_QuestLog.IsQuestFlaggedCompleted
+  if not (questID and flagged) then
+    return false
+  end
+  local ok, done = pcall(flagged, questID)
+  return ok and done == true
+end
+
+-- `options` (the Writ NPCs window's filters): { tier = "Journeyman" / "Expert" / "Artisan" (nil: every level),
+-- mine = true (only writs your crafting professions make), notDone = true (only writs not turned in today) }.
+function ns.CustomerDirectory(counts, search, options)
   local held = ns.HeldWrits(counts)
+  local mine = options and options.mine and ns.PlayerProfessions() or nil
+  local function Wanted(writID)
+    local tier = ns.WritTier(writID)
+    if options and options.tier and not (tier and tier.name == options.tier) then
+      return false
+    end
+    if options and options.notDone and ns.WritDoneToday(writID) then
+      return false
+    end
+    return not mine or mine[ns.WritProfession(writID) or ""] ~= nil
+  end
   if search == "" then
     search = nil
   end
@@ -271,7 +295,9 @@ function ns.CustomerDirectory(counts, search)
   for writID = ns.FOREVER_WRIT_FIRST, ns.FOREVER_WRIT_LAST do
     local customer = ns.WritCustomer(writID)
     local writName = ns.WRITS[writID] and ns.WRITS[writID][3]
-    if customer then
+    if not Wanted(writID) then
+      -- filtered out (level or profession)
+    elseif customer then
       local key = ns.CustomerKey(customer)
       local group = byKey[key]
       if not group then

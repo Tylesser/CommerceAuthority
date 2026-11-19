@@ -20,15 +20,11 @@ Durotar Supply and Logistics (Horde, west of the Crossroads), currency Merchant'
   - Writ quest = item ID - 169800, except `ns.WRIT_QUEST_EXCEPTIONS` (Elixir of Ogre's Strength 264011 -> quest
     94004; there is no quest 94211). Always go through `ns.WritQuestID` / `ns.WritForQuest`.
   - `ns.WRIT_CUSTOMERS[writItemID] = { npcName, uiMapID, x, y }`: who takes each writ. Every writ has its own
-    "customer" NPC somewhere in the world (not the trade hub; the hub's profession NPCs are vendors). Built from
-    QuestieDB's Forever data in the game folder (`QuestieDB_Forever.toc`, CBOR in base64 `## X-Quest-<id>-3`
-    = finishedBy, `## X-Npc-<id>-7` = spawns by area ID, `-S` key 1 = name; area IDs to uiMapIDs from
-    `support/Forever/Zones/areaIdToUiMapId.lua`): 95 of 150. 10 more (2026-11-16) from Wowhead's Forever quest
-    pages ("End:" in Quick Facts), read through the user's Chrome on a VPN (Wowhead is blocked in their country
-    and answers 403 to Claude's servers; fast fetches bring a CAPTCHA, so go one page at a time). The other 45
-    (mostly Artisan) were unknown on both; Potion of Demonslaying shows only "Start: Archmage Xylem" (left out).
-    Rebuild with `E:/Games/Wow/tools/data` (see its README) when QuestieDB grows; the 10 Wowhead entries are
-    marked "(Wowhead)" in Data.lua and must be kept when pasting a rebuilt table.
+    "customer" NPC somewhere in the world (not the trade hub; the hub's profession NPCs are vendors). 113 of 150
+    known; the other 37 (mostly Artisan) are learned at the first turn-in. Rows marked "(added by hand)" must be
+    kept when a rebuilt table is pasted. How the table is built and where the data comes from:
+    `E:/Games/Wow/tools/data/README.md` (workspace, not in this repo: the repo keeps only addon data and names no
+    data source, the user's choice 2026-11-20).
   - `ns.WRIT_TIERS`: the Forever IDs come in three blocks (Journeyman to 264055: 75 rep, Expert to 264115: 125,
     Artisan to 264160: 200), confirmed by the Mobalytics guide's examples. Inside each block the professions run
     Alchemy, Blacksmithing, Engineering, Leatherworking, Tailoring (`ns.WRIT_PROFESSIONS`, from NeedRoll's recipe
@@ -40,9 +36,6 @@ Durotar Supply and Logistics (Horde, west of the Crossroads), currency Merchant'
     20 is a guess), doubled for made goods (`ns.CRATE_MADE_GOODS` by category; filled "Sealed X Crate": green
     quality). Silver =
     50 copper per Favor. Legacy talents: Performance Bonus 15% chance of double Favor, Diplomat +10% reputation.
-  - Sources: mobalytics.gg "Merchant's Favor, Waylaid Crates & Craftsman's Writ Guide" (read via Chrome; it blocks
-    curl/WebFetch), wow.gg merchants-favor, warcraft.wiki.gg Merchant's_Favor, method.gg (NPCs). Wowhead is blocked in
-    the user's region.
 - `Prices.lua`: `ns.Prices(itemID)` from Auctionator (`Auctionator.API.v1`), TSM (`TSM_API.GetCustomPriceValue`
   DBMarket, then DBMinBuyout) and Auctioneer (`AucAdvanced.API.GetMarketValue`), each in pcall. Local function names
   must not shadow those globals (a `local function Auctionator` once hid the API). `ns.CraftCost` reads
@@ -60,7 +53,9 @@ Durotar Supply and Logistics (Horde, west of the Crossroads), currency Merchant'
   timer. Favor arriving while the dialog is open or up to 3 s after QUEST_TURNED_IN is that turn-in's; it is
   resolved 3 s later or when the next dialog opens (whose bags are its "after"), and only when exactly one crate
   kind left the bags. Learned per `level .. " raw"/" made"` (the key tooltips use). Double the usual amount counts
-  as a Performance Bonus only with that option on. Writs: the faction chat message within 3 s of a writ quest's
+  as a Performance Bonus only when you have that talent (`ns.HasPerformanceBonus`; Core.lua `ns.HasLegacyTalent`: the
+  talents are WoW Forever trait talents, spells 1225456 / 1225485, found with IsPlayerSpell / IsSpellKnown /
+  C_SpellBook.IsSpellKnown or their passive aura; no options since 2026-11-19). Writs: the faction chat message within 3 s of a writ quest's
   turn-in, either order (held as pending otherwise). The starting Favor is taken 5 s after PLAYER_ENTERING_WORLD
   (or by the first currency event), never counted as a gain. At a writ's turn-in it also stores the dialog's NPC
   and your map position as that writ's customer (`learned.customers`, kept by "Forget what was learned").
@@ -88,7 +83,17 @@ Durotar Supply and Logistics (Horde, west of the Crossroads), currency Merchant'
 - `NPCs.lua`: the Writ NPCs window (`/aca npcs`, "All NPCs" button; `CommerceAuthorityNPCWindow`, position in
   `npcPosition`): flat lines (zone header, NPC header, its writs, then "NPC not known yet" and those writs) shown in fixed rows
   scrolled with the mouse wheel; search box (`InputBoxTemplate` + `T.EditBox`). Refreshed by `ns.RequestRefresh`.
+  Filter row (2026-11-19, the user's request): level button (`npcTier`: nil / Journeyman / Expert / Artisan), "My
+  professions" (`npcMine`), "Not done today" (`npcNotDone`; writs are daily quests: `ns.WritDoneToday` =
+  `C_QuestLog.IsQuestFlaggedCompleted(ns.WritQuestID(writID))`, also "done today" on the writ line), "Fold all" /
+  "Unfold all"; folded zones in `npcFolded` ([uiMapID] = true, unknown =
+  true; plus/minus button on the zone line, or a click on the line while the AH is closed). The filters go to
+  `ns.CustomerDirectory(counts, search, { tier, mine, notDone })`.
 - `Options.lua`: options page. `Events.lua`: events and `/aca` `/commerce` (`options`, `debug`, `feedback`).
+
+**Twin in Codex:** `Addons/Codex/Modules/Commerce` is this addon ported into Codex (2026-11-19): the same Data,
+Core, Learn, Quests, Tooltip and Vendor code on `ns.commerce`, with Codex's prices, shopping lists and widgets. A fix
+here goes there too (and back); see Codex's CLAUDE.md.
 
 Tests: `tools/harness/ca_test.lua` (`node run.js ca_test.lua E:/Games/Wow/Addons/CommerceAuthority`).
 
@@ -100,5 +105,5 @@ Tests: `tools/harness/ca_test.lua` (`node run.js ca_test.lua E:/Games/Wow/Addons
 - Whether `C_QuestLog.GetNextWaypoint` or `GetQuestsOnMap` know the writ delivery spots on Forever.
 - Where the vendor mark sits on the merchant row, next to Vendor Search's own marks.
 - The faction chat message format on Forever, and whether writs ask for more than 1 item.
-- Customers: whether the QuestieDB NPCs and spots are right, and whether `UnitName("npc")` and the player's map
+- Customers: whether the table's NPCs and spots are right, and whether `UnitName("npc")` and the player's map
   position at QUEST_COMPLETE give the customer (learned per writ in `learned.customers`).

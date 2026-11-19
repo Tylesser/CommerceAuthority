@@ -51,11 +51,6 @@ function ns.CreateOptions()
   _, help = CreateCheck(panel, help, "Prices from every auction addon",
     "When more than one price addon is installed (Auctionator, TradeSkillMaster, Auctioneer), show all their "
       .. "prices instead of only the first.", "allSources")
-  _, help = CreateCheck(panel, help, "I have the Performance Bonus legacy talent",
-    "15% chance of double Merchant's Favor from a crate: estimates count it in.", "performanceBonus")
-  _, help = CreateCheck(panel, help, "I have the Diplomat legacy talent",
-    "10% more reputation: writ estimates count it in until a turn-in shows the real amount.", "diplomat",
-    ns.InvalidateCheapest)
 
   local sources = panel:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
   sources:SetPoint("TOPLEFT", help, "BOTTOMLEFT", -26, -18)
@@ -63,8 +58,13 @@ function ns.CreateOptions()
   sources:SetJustifyH("LEFT")
   panel:HookScript("OnShow", function()
     local names = ns.PriceSourceNames()
+    local talents = {}
+    for _, talent in ipairs({ { "Performance Bonus", ns.HasPerformanceBonus() }, { "Diplomat", ns.HasDiplomat() } }) do
+      talents[#talents + 1] = talent[1] .. (talent[2] and " (yours: counted in)" or " (not taken)")
+    end
     sources:SetText("Price addons found: " .. (#names > 0 and table.concat(names, ", ")
-      or "none. Install Auctionator, TradeSkillMaster or Auctioneer for auction prices."))
+      or "none. Install Auctionator, TradeSkillMaster or Auctioneer for auction prices.")
+      .. "\nLegacy talents: " .. table.concat(talents, ", ") .. ".")
   end)
 
   local open = ns.T.Button(panel, 140, 24, "Open the window", true)

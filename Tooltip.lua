@@ -157,7 +157,7 @@ function ns.CrateTooltipLines(itemID, name)
   if not info.filled and not (info.contents and #info.contents > 0) then
     Add("  Fill it with one item from its list, then turn it in at the trade hub.", GREY)
   end
-  if DB().performanceBonus then
+  if ns.HasPerformanceBonus() then
     Add(("  Performance Bonus: %d%% chance of %s"):format(ns.PERFORMANCE_BONUS_CHANCE * 100,
       ns.Number(favor * 2)), GREY)
   end

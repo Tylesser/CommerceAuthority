@@ -5,11 +5,13 @@ ns.defaults = {
   crateTooltips = true,     -- crate tooltips: Merchant's Favor, silver, what fills it
   vendorMarks = true,       -- at the Commerce Authority vendors: what you can afford
   allSources = true,        -- every installed price addon in tooltips, not only the first
-  performanceBonus = false, -- you have the Performance Bonus legacy talent
-  diplomat = false,         -- you have the Diplomat legacy talent
   onlyMyProfessions = false, -- the window's cheapest list: only writs your professions make
   cheapestBy = nil,         -- the window's cheapest list: "writ", "npc" or "zone" (nil: writ; ns.CheapestMode)
   position = nil,           -- the window's position
+  npcTier = nil,            -- the Writ NPCs window: only this writ level ("Journeyman", "Expert", "Artisan")
+  npcMine = false,          -- the Writ NPCs window: only writs your professions make
+  npcNotDone = false,       -- the Writ NPCs window: only writs not turned in today
+  npcFolded = {},           -- the Writ NPCs window: folded zones ([uiMapID] = true, unknown = true)
   learned = {
     crates = {},            -- [level .. " raw"/" made"] = { n, total, min, max, last, values }: Favor per turn-in
     writs = {},             -- [writ quest ID] = { n, total, min, max, last, values }: reputation per turn-in
@@ -82,6 +84,47 @@ function ns.UsualValue(seen)
     end
   end
   return best or seen.last or seen.min
+end
+
+-- Legacy talents ------------------------------------------------------------------------------------
+-- WoW Forever's legacy talents are talent tree talents: Performance Bonus (spell 1225456, 15% chance of double
+-- Merchant's Favor from a crate) and Diplomat (1225485, +10% reputation). Detected like any spell you know (or by
+-- their passive aura) instead of asking (the user's request, 2026-11-19).
+
+ns.PERFORMANCE_BONUS_SPELL = 1225456
+ns.DIPLOMAT_SPELL = 1225485
+
+local function Yes(fn, ...)
+  if type(fn) ~= "function" then
+    return false
+  end
+  local ok, result = pcall(fn, ...)
+  return ok and result == true
+end
+
+function ns.HasLegacyTalent(spellID)
+  if Yes(IsPlayerSpell, spellID) or Yes(IsSpellKnown, spellID) then
+    return true
+  end
+  if C_SpellBook and Yes(C_SpellBook.IsSpellKnown, spellID) then
+    return true
+  end
+  local auras = C_UnitAuras
+  if auras and type(auras.GetPlayerAuraBySpellID) == "function" then
+    local ok, aura = pcall(auras.GetPlayerAuraBySpellID, spellID)
+    if ok and type(aura) == "table" then
+      return true
+    end
+  end
+  return false
+end
+
+function ns.HasPerformanceBonus()
+  return ns.HasLegacyTalent(ns.PERFORMANCE_BONUS_SPELL)
+end
+
+function ns.HasDiplomat()
+  return ns.HasLegacyTalent(ns.DIPLOMAT_SPELL)
 end
 
 -- Merchant's Favor and the faction -----------------------------------------------------------------
@@ -282,7 +325,7 @@ end
 
 -- A writ level's reputation, +10% with Diplomat.
 function ns.TierRep(tier)
-  if DB().diplomat then
+  if ns.HasDiplomat() then
     return math.floor(tier.rep * (1 + ns.DIPLOMAT_BONUS) + 0.5)
   end
   return tier.rep
@@ -393,7 +436,7 @@ end
 
 -- Expected Favor including the Performance Bonus when you have it.
 function ns.ExpectedFavor(favor)
-  if DB().performanceBonus then
+  if ns.HasPerformanceBonus() then
     return favor * (1 + ns.PERFORMANCE_BONUS_CHANCE)
   end
   return favor

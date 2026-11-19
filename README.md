@@ -26,7 +26,7 @@ A helper for the WoW Forever crafting factions, the **Azeroth Commerce Authority
 - **Search the auction house with a click**: while the auction house is open, click a writ, an NPC or a zone (in the cheapest list or in Writ NPCs) to search for those writs (the ones you don't have yet) and the items they ask for. With Auctionator all of them at once in its Shopping tab; without it the game's search box takes the first.
 - **Vendor marks**: at the Commerce Authority vendors, everything that costs Merchant's Favor shows "Can buy" or how much more you need, and its tooltip says how many crates that is.
 - **Learns the real numbers**: the first values come from player guides. Each time you turn in a crate or a writ, the addon remembers what it actually gave and uses that from then on. Tooltips say "(guide)" or "(a guess)" until then. Who takes each writ is known for 105 of the 150 writs; for the rest (mostly Artisan writs) the addon remembers the NPC the first time you turn one in.
-- **Legacy talents**: tick Performance Bonus (15% chance of double Favor from a crate) or Diplomat (+10% reputation) on the options page and the estimates count them in.
+- **Legacy talents**: when you have Performance Bonus (15% chance of double Favor from a crate) or Diplomat (+10% reputation), the estimates count them in. The addon sees which ones you have; the options page lists them.
 
 ## How the numbers are estimated
 

@@ -31,6 +31,19 @@ local function Text(parent, template, color)
   return text
 end
 
+-- A check box clickable over its own label only: the shared check boxes reach 200+ px to the right, and in a row
+-- of controls they covered the next one (hovering "Not done today" lit "My professions", 2026-11-19).
+function ns.FitCheck(check)
+  local label = check.label or check.Text
+  local width = label and label.GetStringWidth and label:GetStringWidth()
+  if type(width) ~= "number" or width <= 0 then
+    -- not measured yet (before the first show): about 6 px a letter at these sizes
+    local text = label and label.GetText and label:GetText()
+    width = type(text) == "string" and #text * 6 or 90
+  end
+  check:SetHitRectInsets(0, -(math.ceil(width) + 6), 0, 0)
+end
+
 local function SavePosition(frame)
   local point, _, relativePoint, x, y = frame:GetPoint(1)
   CommerceAuthorityDB.position = { point, relativePoint, x, y }
@@ -390,6 +403,7 @@ local function Create()
     ns.RefreshWindow()
   end)
   mine:SetChecked(CommerceAuthorityDB.onlyMyProfessions)
+  ns.FitCheck(mine)
   window.mine = mine
   local mode = T.Button(window, 84, 20, MODE_LABELS[ns.CheapestMode()])
   mode:SetPoint("TOPLEFT", PAD + 160, -381)
