@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.2.1
+
+- Fixed: a Lua error at some writ hand-ins ("attempt to compare local 'name'"): when the game keeps the NPC's name hidden, that hand-in simply isn't used to learn where the customer stands.
+
 ## 1.2.0
 
 - Writ NPCs window: a writ level button (all, Journeyman, Expert, Artisan), a "My professions" filter and a "Not done today" filter (every writ can be turned in once a day; writs you turned in today say "done today"); zones fold with the button on their line (or a click on the zone away from the auction house), and "Fold all" folds or unfolds every zone. Your filters and folded zones are kept.

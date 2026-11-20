@@ -160,9 +160,14 @@ end
 
 -- The NPC whose quest dialog is open and where you stand: { name, mapID, x, y (0-100) }, or nil (no NPC, or
 -- no map position, as in instances).
+local function Secret(value)
+  return value ~= nil and issecretvalue ~= nil and issecretvalue(value) == true
+end
+
 function ns.CurrentCustomer()
   local name = UnitName and UnitName("npc")
-  if not name or name == "" then
+  -- the NPC's name can be secret (the user's error at a writ hand-in, 2026-11-21): test before any comparison
+  if name == nil or Secret(name) or name == "" then
     return nil
   end
   local mapID = C_Map and C_Map.GetBestMapForUnit and C_Map.GetBestMapForUnit("player")
@@ -175,7 +180,7 @@ function ns.CurrentCustomer()
       x, y = position.x, position.y
     end
   end
-  if not (x and y) or (x == 0 and y == 0) then
+  if not (x and y) or Secret(x) or Secret(y) or (x == 0 and y == 0) then
     return nil
   end
   return { name, mapID, math.floor(x * 1000 + 0.5) / 10, math.floor(y * 1000 + 0.5) / 10 }
