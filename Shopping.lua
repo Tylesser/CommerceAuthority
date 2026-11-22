@@ -33,8 +33,30 @@ function ns.PlanPurchases()
   return plan
 end
 
--- Puts writs (cheapest-list entries) and the items they ask for (the ones cheaper to buy than to craft) into
--- the Auctionator list. Returns true when the list was made.
+-- What to buy for a writ's items (2026-11-22, the user's request: search the materials of what you craft): the item
+-- itself when buying is cheaper, its materials when crafting is (Profit Sort's record), else nothing. Calls
+-- add(name, quantity) for each; `count` = how many of the item the writs ask for.
+local function ItemsFor(writID, writ, count, add)
+  local _, how = ns.WantedItemCost(writID)
+  local itemID = ns.WantedItem(writ)
+  if how == "craft" and itemID then
+    local reagents, made = ns.CraftReagents(itemID)
+    if reagents then
+      local crafts = math.ceil(count / math.max(made or 1, 1))
+      for _, reagent in ipairs(reagents) do
+        add(ns.ItemName(reagent.itemID), reagent.count * crafts)
+      end
+      return
+    end
+  end
+  if itemID or writ[3] then
+    add((itemID and ns.ItemName(itemID)) or writ[3], count)
+  end
+end
+ns.ItemsFor = ItemsFor
+
+-- Puts writs (cheapest-list entries) and the items they ask for (or, for the items cheaper to craft, their
+-- materials) into the Auctionator list. Returns true when the list was made.
 local function MakeList(api, picks)
   local searches, items, order = {}, {}, {}
   for _, entry in ipairs(picks) do
@@ -42,16 +64,15 @@ local function MakeList(api, picks)
     local writName = ns.ItemName(entry.writID) or ("Craftsman's Writ: " .. writ[3])
     searches[#searches + 1] = api.ConvertToSearchString(addonName, { searchString = writName, isExact = true,
       quantity = 1 })
-    local _, how = ns.WantedItemCost(entry.writID)
-    local itemID = ns.WantedItem(writ)
-    if how == "buy" and itemID then
-      local name = ns.ItemName(itemID) or writ[3]
-      if not items[name] then
-        order[#order + 1] = name
-        items[name] = 0
+    ItemsFor(entry.writID, writ, ns.WritCount(entry.writID, writ), function(name, quantity)
+      if name then
+        if not items[name] then
+          order[#order + 1] = name
+          items[name] = 0
+        end
+        items[name] = items[name] + quantity
       end
-      items[name] = items[name] + ns.WritCount(entry.writID, writ)
-    end
+    end)
   end
   for _, name in ipairs(order) do
     searches[#searches + 1] = api.ConvertToSearchString(addonName, { searchString = name, isExact = true,
@@ -125,6 +146,33 @@ function ns.CreateZoneBuyList(zone)
   return true
 end
 
+-- The buy list for one kind of crate (an entry of ns.CratesToFill): the cheapest priced fill item, enough for all
+-- of them, less what your bags hold.
+function ns.CreateCrateBuyList(crate)
+  local api = API()
+  local option = crate and crate.options[1]
+  if not (api and option) then
+    if api then
+      Say("no known fill for " .. (crate and crate.info.name or "that crate") .. ".")
+    end
+    return false
+  end
+  local need = math.max(option.count * crate.count - option.owned, 0)
+  if need == 0 then
+    Say(("your bags already hold enough %s to fill %s."):format(option.name, crate.info.name))
+    return false
+  end
+  local search = api.ConvertToSearchString(addonName, { searchString = option.name, isExact = true, quantity = need })
+  local ok, err = pcall(api.CreateShoppingList, addonName, ns.SHOPPING_LIST, { search })
+  if not ok then
+    Say("Auctionator couldn't make the list: " .. tostring(err))
+    return false
+  end
+  Say(("shopping list \"%s\": %d %s to fill %d %s."):format(ns.SHOPPING_LIST, need, option.name, crate.count,
+    crate.info.name))
+  return true
+end
+
 -- Auction house search ----------------------------------------------------------------------------------
 
 function ns.AuctionHouseOpen()
@@ -147,8 +195,42 @@ local function BlizzardSearch(term)
   return false
 end
 
+-- Searches the open auction house for everything that fills a crate (an entry of ns.CratesToFill), cheapest first.
+-- With Auctionator every item at once, else the game's search box with the cheapest. Returns true when started.
+function ns.SearchCrate(crate)
+  if not (crate and ns.AuctionHouseOpen()) then
+    return false
+  end
+  local terms = {}
+  for _, option in ipairs(crate.options) do
+    terms[#terms + 1] = option.name
+  end
+  if #terms == 0 then
+    Say("no known fill for " .. crate.info.name .. ".")
+    return false
+  end
+  local api = Auctionator and Auctionator.API and Auctionator.API.v1
+  if api and api.MultiSearchExact then
+    local ok, err = pcall(api.MultiSearchExact, addonName, terms)
+    if ok then
+      Say(("searching the auction house: what fills %s (%d item%s)."):format(crate.info.name, #terms,
+        #terms == 1 and "" or "s"))
+      return true
+    end
+    Say("Auctionator couldn't search: " .. tostring(err))
+  end
+  local ok, started = pcall(BlizzardSearch, terms[1])
+  if ok and started then
+    if #terms > 1 then
+      Say(("searching for %s; install Auctionator to search all %d fills at once."):format(terms[1], #terms))
+    end
+    return true
+  end
+  return false
+end
+
 -- Searches the open auction house for writs you don't hold yet, and the items asked for by those and by your
--- writs that aren't ready. `held` from ns.HeldWrits. With Auctionator every name at once (its Shopping tab),
+-- writs that aren't ready (for an item cheaper to craft: its materials). `held` from ns.HeldWrits. With Auctionator every name at once (its Shopping tab),
 -- else the game's search box with the first. Returns true when a search started.
 function ns.SearchWrits(writIDs, held)
   if not ns.AuctionHouseOpen() then
@@ -171,8 +253,7 @@ function ns.SearchWrits(writIDs, held)
       writCount = writCount + 1
     end
     if writ and not (mine and mine.ready) then
-      local itemID = ns.WantedItem(writ)
-      Add((itemID and ns.ItemName(itemID)) or writ[3])
+      ItemsFor(writID, writ, ns.WritCount(writID, writ), Add)
     end
   end
   if #terms == 0 then
@@ -183,8 +264,8 @@ function ns.SearchWrits(writIDs, held)
   if api and api.MultiSearchExact then
     local ok, err = pcall(api.MultiSearchExact, addonName, terms)
     if ok then
-      Say(("searching the auction house: %d writ%s and the items they ask for."):format(writCount,
-        writCount == 1 and "" or "s"))
+      Say(("searching the auction house: %d writ%s and the items they ask for (the materials for those you "
+        .. "craft)."):format(writCount, writCount == 1 and "" or "s"))
       return true
     end
     Say("Auctionator couldn't search: " .. tostring(err))

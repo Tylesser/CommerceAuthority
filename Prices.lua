@@ -96,6 +96,16 @@ function ns.CraftCost(itemID)
   end
 end
 
+-- The materials of one craft of an item (from Profit Sort's record: { itemID, count } each) and how many one craft
+-- makes, or nil (no record, or a Profit Sort from before it kept materials).
+function ns.CraftReagents(itemID)
+  local products = ProfitSortCharDB and ProfitSortCharDB.products
+  local record = itemID and type(products) == "table" and products[itemID]
+  if type(record) == "table" and type(record.reagents) == "table" and #record.reagents > 0 then
+    return record.reagents, record.numMade or 1
+  end
+end
+
 -- "12g 34s 56c", or "--" for nil.
 function ns.Money(amount)
   if not amount then

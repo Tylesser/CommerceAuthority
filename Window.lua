@@ -107,8 +107,9 @@ local function CustomerTooltip(row)
     GameTooltip:AddLine(("%d more writ%s for %s with no auction price yet."):format(missing,
       missing == 1 and "" or "s", customer.name), 0.6, 0.6, 0.6, true)
   end
-  GameTooltip:AddLine("Click: search the auction house for these writs when it's open, else make the Auctionator "
-    .. "buy list. Way: waypoint to " .. customer.name .. ".", 0.6, 0.6, 0.6, true)
+  GameTooltip:AddLine("Click: search the auction house for these writs and their items (the materials, for items "
+    .. "cheaper to craft) when it's open, else make the Auctionator buy list. Way: waypoint to " .. customer.name
+    .. ".", 0.6, 0.6, 0.6, true)
   GameTooltip:Show()
 end
 
@@ -132,8 +133,9 @@ local function ZoneTooltip(row)
     GameTooltip:AddLine(("You also hold %d writ%s for NPCs here: deliver %s on the same trip."):format(zone.have,
       zone.have == 1 and "" or "s", zone.have == 1 and "it" or "them"), 1, 0.82, 0, true)
   end
-  GameTooltip:AddLine("Click: search the auction house for these writs when it's open, else make the Auctionator "
-    .. "buy list. Way: waypoints to the NPCs (all of them with TomTom, else the first).", 0.6, 0.6, 0.6, true)
+  GameTooltip:AddLine("Click: search the auction house for these writs and their items (the materials, for items "
+    .. "cheaper to craft) when it's open, else make the Auctionator buy list. Way: waypoints to the NPCs (all of "
+    .. "them with TomTom, else the first).", 0.6, 0.6, 0.6, true)
   GameTooltip:Show()
 end
 
@@ -166,7 +168,8 @@ local function CheapRow(index)
     elseif self.group then
       CustomerTooltip(self)
     elseif self.writID then
-      ItemTooltip(self, self.writID, "Click at the auction house to search for it. Shift-click to link it.")
+      ItemTooltip(self, self.writID, "Click at the auction house to search for it and its item (or the item's "
+        .. "materials, when crafting it is cheaper). Shift-click to link it.")
     end
   end)
   row:SetScript("OnLeave", HideTooltip)
@@ -225,7 +228,31 @@ local function Way(row)
   end
 end
 
+-- A crate to fill (row.crate, from ns.CratesToFill): its Favor and every way to fill it, cheapest first.
+local function CrateTooltip(row)
+  local crate = row.crate
+  GameTooltip:SetOwner(row, "ANCHOR_RIGHT")
+  GameTooltip:AddLine(crate.info.name)
+  GameTooltip:AddLine(("%d in your bags: about %s Merchant's Favor each"):format(crate.count,
+    ns.Number(crate.favor)), 1, 1, 1, true)
+  for _, option in ipairs(crate.options) do
+    local have = option.owned > 0 and (" |cff999999(you have %d)|r"):format(option.owned) or ""
+    GameTooltip:AddDoubleLine(("Fill: %d %s%s"):format(option.count, option.name, have),
+      option.cost and ns.Money(option.cost) or "|cff999999no price|r", 1, 1, 1, 1, 1, 1)
+  end
+  if #crate.options == 0 then
+    GameTooltip:AddLine("What fills it isn't known.", 0.6, 0.6, 0.6, true)
+  end
+  GameTooltip:AddLine("Click: search the auction house for what fills it when it's open, else make the "
+    .. "Auctionator buy list with the cheapest fill for all of them.", 0.6, 0.6, 0.6, true)
+  GameTooltip:Show()
+end
+
 local function DeliveryTooltip(row)
+  if row.crate then
+    CrateTooltip(row)
+    return
+  end
   local group = row.group
   if not group then
     return
@@ -292,6 +319,22 @@ local function DeliveryRow()
   row.name:SetPoint("LEFT", 2, 0)
   row.name:SetPoint("RIGHT", row.way, "LEFT", -6, 0)
   row.name:SetWordWrap(false)
+  -- a crate to fill: search for what fills it (or the buy list away from the auction house)
+  row:SetScript("OnClick", function(self)
+    if not self.crate then
+      return
+    end
+    if IsShiftKeyDown and IsShiftKeyDown() then
+      local link = ns.ItemLink and ns.ItemLink(self.crate.itemID)
+      if link and ChatEdit_InsertLink then
+        ChatEdit_InsertLink(link)
+      end
+    elseif ns.AuctionHouseOpen() then
+      ns.SearchCrate(self.crate)
+    else
+      ns.CreateCrateBuyList(self.crate)
+    end
+  end)
   return row
 end
 
@@ -551,22 +594,51 @@ local function DeliveryText(group)
   return ("%s |cff999999(not known who takes it)|r%s"):format(WritName(group.writs[1].writID), ready)
 end
 
+-- "Waylaid Crate: Journeyman Ore x2: fill 20 Iron Ore, 1g 20s" (or "ready to fill" when your bags hold enough)
+local function CrateText(crate)
+  local name = crate.info.name:gsub("^Waylaid Crate: ", "Crate: ")
+  local times = crate.count > 1 and (" x%d"):format(crate.count) or ""
+  if crate.ready then
+    return ("%s%s |cff40ff40ready to fill|r"):format(name, times)
+  end
+  local option = crate.options[1]
+  if not option then
+    return ("%s%s |cff999999(fill not known)|r"):format(name, times)
+  end
+  return ("%s%s|cff999999: fill %d %s%s|r"):format(name, times, option.count, option.name,
+    option.cost and (", " .. ns.ShortMoney(option.cost)) or "")
+end
+
 local function Deliveries(counts)
   local groups = ns.Deliveries(counts)
+  -- the writs first, then the crates you still have to fill
+  local entries = {}
+  for _, group in ipairs(groups) do
+    entries[#entries + 1] = { group = group }
+  end
+  for _, crate in ipairs(ns.CratesToFill(counts)) do
+    entries[#entries + 1] = { crate = crate }
+  end
   for index, row in ipairs(window.deliveries) do
-    local group = groups[index]
+    local entry = entries[index]
+    local group, crate = entry and entry.group, entry and entry.crate
+    row.group, row.crate = group, crate
     if group then
-      row.group = group
       row.name:SetText(DeliveryText(group))
       row.way:SetShown(group.customer ~= nil or group.writs[1].questID ~= nil)
       row:Show()
+    elseif crate then
+      row.name:SetText(CrateText(crate))
+      row.way:Hide()
+      row:Show()
     else
-      row.group = nil
       row:Hide()
     end
   end
+  groups = entries
   if #groups == 0 then
-    window.noDeliveries:SetText("No writs. The writs you hold show here, grouped by who takes them.")
+    window.noDeliveries:SetText("No writs or crates. The writs you hold show here, grouped by who takes them, "
+      .. "then the crates you have to fill.")
   elseif #groups > DELIVERY_ROWS then
     window.noDeliveries:SetText("")
     local last = window.deliveries[DELIVERY_ROWS]

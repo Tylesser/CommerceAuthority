@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.3.0
+
+- **Waylaid Crates in the window**: the crates you still have to fill show under Deliveries, after your writs, with how many you hold and the cheapest way to fill them (or "ready to fill" when your bags hold enough). Hover one for every fill and its price. At the auction house a click searches for everything that fills it (with Auctionator all at once); elsewhere it puts the cheapest fill on the Auctionator buy list, enough for all your crates of that kind.
+- **Materials for what you craft**: when a writ's item is cheaper to craft than to buy, a click at the auction house searches for the item's materials instead of the item, and the buy list holds the materials (enough for the writs' count). The materials come from Profit Sort (1.6.0 or later, after you open the profession once); without them it searches the item as before.
+
 ## 1.2.1
 
 - Fixed: a Lua error at some writ hand-ins ("attempt to compare local 'name'"): when the game keeps the NPC's name hidden, that hand-in simply isn't used to learn where the customer stands.
