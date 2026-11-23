@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.4.0
+
+- **Start**: a writ that is ready but not opened yet (your bags hold what it asks for) gets a Start button: in the window's Deliveries (one writ per click) and on its line in the Writ NPCs window. It opens the writ's quest as a right-click on it does; not in a fight, and not while a vendor, bank, mail, trade or auction house window is open (the writ would go there).
+- **More writ NPCs**: 133 of the 150 writs now know who takes them (20 more Artisan writs: Blasted Lands, Deadwind Pass, Winterspring, Silithus and more). The other 17 are still learned at your first turn-in.
+- **Writ NPCs window**: zones are grouped under their continents (Eastern Kingdoms, Kalimdor), each folding like a zone; Fold all folds the continents.
+
 ## 1.3.0
 
 - **Waylaid Crates in the window**: the crates you still have to fill show under Deliveries, after your writs, with how many you hold and the cheapest way to fill them (or "ready to fill" when your bags hold enough). Hover one for every fill and its price. At the auction house a click searches for everything that fills it (with Auctionator all at once); elsewhere it puts the cheapest fill on the Auctionator buy list, enough for all your crates of that kind.

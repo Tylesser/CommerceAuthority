@@ -39,7 +39,9 @@ local function ToggleFold(key)
 end
 
 local function FoldKey(line)
-  if line.kind == "zone" then
+  if line.kind == "continent" then
+    return "c" .. line.continent.id
+  elseif line.kind == "zone" then
     return line.zone.mapID
   elseif line.kind == "unknown" then
     return "unknown"
@@ -106,6 +108,12 @@ local function OnEnter(row)
       GameTooltip:SetHyperlink("item:" .. line.writID)
     end
     GameTooltip:AddLine("Click at the auction house to search for it. Shift-click to link it.", 0.6, 0.6, 0.6)
+  elseif line.kind == "continent" then
+    local continent = line.continent
+    GameTooltip:AddLine(continent.name)
+    GameTooltip:AddLine(("%d zones, %d NPCs, %d writs; you hold %d."):format(#continent.zones, continent.npcs,
+      continent.writs, continent.held), 1, 1, 1)
+    GameTooltip:AddLine("Click to fold its zones.", 0.6, 0.6, 0.6, true)
   elseif line.kind == "zone" then
     local zone = line.zone
     GameTooltip:AddLine(zone.name)
@@ -146,6 +154,18 @@ local function Row()
   highlight:SetColorTexture(ns.T.GOLD[1], ns.T.GOLD[2], ns.T.GOLD[3], 0.12)
   row.way = ns.T.Button(row, 40, 15, "Way")
   row.way:SetPoint("RIGHT", 0, 0)
+  row.start = ns.T.Button(row, 44, 15, "Start")
+  row.start:SetPoint("RIGHT", 0, 0)
+  row.start:SetScript("OnClick", function()
+    local line = row.line
+    if line and line.kind == "writ" then
+      local ok, why = ns.StartWrit(line.writID)
+      if not ok and why then
+        print(ns.T.Prefix("Commerce Authority") .. why)
+      end
+    end
+  end)
+  row.start:Hide()
   row.way:SetScript("OnClick", function()
     local line = row.line
     if line and line.kind == "zone" then
@@ -181,7 +201,7 @@ local function Row()
       end
       return
     end
-    if not ns.AuctionHouseOpen() then
+    if line.kind == "continent" or not ns.AuctionHouseOpen() then
       local key = FoldKey(line)
       if key then
         ToggleFold(key) -- away from the auction house a zone line folds
@@ -222,10 +242,22 @@ local function ShowLine(row, line, held)
   row.name:ClearAllPoints()
   row.state:ClearAllPoints()
   ShowFold(row, FoldKey(line))
-  if line.kind == "zone" then
+  row.start:Hide()
+  row.fold:ClearAllPoints()
+  row.fold:SetPoint("LEFT", line.kind == "zone" and 12 or 0, 0)
+  if line.kind == "continent" then
+    local continent = line.continent
+    row.way:Hide()
+    row.name:SetPoint("LEFT", 18, 0)
+    row.name:SetPoint("RIGHT", -150, 0)
+    row.name:SetText(("|cffffd100%s|r |cff999999%d zone%s|r"):format(continent.name, #continent.zones,
+      #continent.zones == 1 and "" or "s"))
+    row.state:SetPoint("RIGHT", -2, 0)
+    row.state:SetText(CountAndCost(continent.held, continent.writs, continent.cost, continent.unpriced))
+  elseif line.kind == "zone" then
     local zone = line.zone
     row.way:Show()
-    row.name:SetPoint("LEFT", 18, 0)
+    row.name:SetPoint("LEFT", 30, 0)
     row.name:SetPoint("RIGHT", -206, 0)
     row.name:SetText(("|cffff9933%s|r |cff999999%d NPC%s|r"):format(zone.name, #zone.npcs,
       #zone.npcs == 1 and "" or "s"))
@@ -234,7 +266,7 @@ local function ShowLine(row, line, held)
   elseif line.kind == "npc" then
     local group = line.group
     row.way:Show()
-    row.name:SetPoint("LEFT", 12, 0)
+    row.name:SetPoint("LEFT", 24, 0)
     row.name:SetPoint("RIGHT", -206, 0)
     row.name:SetText(("|cffffd100%s|r |cff999999%.1f, %.1f|r"):format(group.customer.name, group.customer.x,
       group.customer.y))
@@ -242,10 +274,13 @@ local function ShowLine(row, line, held)
     row.state:SetText(CountAndCost(group.held, #group.writs, group.cost, group.unpriced))
   elseif line.kind == "writ" then
     row.way:Hide()
-    row.name:SetPoint("LEFT", line.group and 24 or 12, 0)
+    local mine = held[line.writID]
+    local startable = mine and mine.ready and not mine.questID and not (InCombatLockdown and InCombatLockdown())
+    row.start:SetShown(startable and true or false)
+    row.name:SetPoint("LEFT", line.group and 36 or 12, 0)
     row.name:SetPoint("RIGHT", -150, 0)
     row.name:SetText(WritLabel(line.writID))
-    row.state:SetPoint("RIGHT", -2, 0)
+    row.state:SetPoint("RIGHT", startable and -50 or -2, 0)
     row.state:SetText(WritState(line.writID, held))
   else
     row.way:Hide()
@@ -441,19 +476,43 @@ function ns.RefreshNPCWindow(keep)
     lines = {}
     local writs, mine = 0, 0
     local anyOpen = false
+    -- zones under their continents (in the order of their first zone)
+    local continents, byID = {}, {}
     for _, zone in ipairs(directory.zones) do
-      lines[#lines + 1] = { kind = "zone", zone = zone }
-      local folded = Folded(zone.mapID)
-      anyOpen = anyOpen or not folded
-      for _, group in ipairs(zone.npcs) do
-        if not folded then
-          lines[#lines + 1] = { kind = "npc", group = group }
-          for _, writID in ipairs(group.writs) do
-            lines[#lines + 1] = { kind = "writ", writID = writID, group = group }
-          end
+      local id, name = ns.ContinentOf(zone.mapID)
+      local continent = byID[id]
+      if not continent then
+        continent = { id = id, name = name, zones = {}, npcs = 0, writs = 0, held = 0, cost = 0, unpriced = 0 }
+        byID[id] = continent
+        continents[#continents + 1] = continent
+      end
+      continent.zones[#continent.zones + 1] = zone
+      continent.npcs = continent.npcs + #zone.npcs
+      continent.writs = continent.writs + zone.writs
+      continent.held = continent.held + zone.held
+      continent.cost = continent.cost + (zone.cost or 0)
+      continent.unpriced = continent.unpriced + (zone.unpriced or 0)
+    end
+    for _, continent in ipairs(continents) do
+      lines[#lines + 1] = { kind = "continent", continent = continent }
+      local closed = Folded("c" .. continent.id)
+      anyOpen = anyOpen or not closed
+      for _, zone in ipairs(continent.zones) do
+        local folded = closed or Folded(zone.mapID)
+        if not closed then
+          lines[#lines + 1] = { kind = "zone", zone = zone }
+          anyOpen = anyOpen or not folded
         end
-        writs = writs + #group.writs
-        mine = mine + group.held
+        for _, group in ipairs(zone.npcs) do
+          if not folded then
+            lines[#lines + 1] = { kind = "npc", group = group }
+            for _, writID in ipairs(group.writs) do
+              lines[#lines + 1] = { kind = "writ", writID = writID, group = group }
+            end
+          end
+          writs = writs + #group.writs
+          mine = mine + group.held
+        end
       end
     end
     if #directory.unknown > 0 then

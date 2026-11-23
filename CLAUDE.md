@@ -20,8 +20,8 @@ Durotar Supply and Logistics (Horde, west of the Crossroads), currency Merchant'
   - Writ quest = item ID - 169800, except `ns.WRIT_QUEST_EXCEPTIONS` (Elixir of Ogre's Strength 264011 -> quest
     94004; there is no quest 94211). Always go through `ns.WritQuestID` / `ns.WritForQuest`.
   - `ns.WRIT_CUSTOMERS[writItemID] = { npcName, uiMapID, x, y }`: who takes each writ. Every writ has its own
-    "customer" NPC somewhere in the world (not the trade hub; the hub's profession NPCs are vendors). 113 of 150
-    known; the other 37 (mostly Artisan) are learned at the first turn-in. Rows marked "(added by hand)" must be
+    "customer" NPC somewhere in the world (not the trade hub; the hub's profession NPCs are vendors). 133 of 150
+    known (2026-11-24, QuestieDB 1.1.5 + two by hand); the other 17 (Artisan) are learned at the first turn-in. Rows marked "(added by hand)" must be
     kept when a rebuilt table is pasted. How the table is built and where the data comes from:
     `E:/Games/Wow/tools/data/README.md` (workspace, not in this repo: the repo keeps only addon data and names no
     data source, the user's choice 2026-11-20).
@@ -86,9 +86,16 @@ Durotar Supply and Logistics (Horde, west of the Crossroads), currency Merchant'
   Filter row (2026-11-19, the user's request): level button (`npcTier`: nil / Journeyman / Expert / Artisan), "My
   professions" (`npcMine`), "Not done today" (`npcNotDone`; writs are daily quests: `ns.WritDoneToday` =
   `C_QuestLog.IsQuestFlaggedCompleted(ns.WritQuestID(writID))`, also "done today" on the writ line), "Fold all" /
-  "Unfold all"; folded zones in `npcFolded` ([uiMapID] = true, unknown =
-  true; plus/minus button on the zone line, or a click on the line while the AH is closed). The filters go to
+  "Unfold all"; zones grouped under continents (2026-11-24, the user's request: `ns.ContinentOf(mapID)` in Quests.lua walks
+  C_Map.GetMapInfo's parents to the continent, else `ns.ZONE_CONTINENT` / the classic map ID ranges; a "continent"
+  line with fold key "c<id>", a click on it always folds); folded zones in `npcFolded` ([uiMapID] = true, unknown =
+  true, "c<continent>" = true; plus/minus button on the zone line, or a click on the line while the AH is closed). The filters go to
   `ns.CustomerDirectory(counts, search, { tier, mine, notDone })`.
+- Start (2026-11-24, the user's request): `ns.StartWrit(writID)` (Core.lua) uses the writ from the bags
+  (`C_Container.UseContainerItem`, as a right-click), refused in combat and while MerchantFrame / BankFrame /
+  MailFrame / TradeFrame / GuildBankFrame / AuctionHouseFrame shows (UseContainerItem would sell or move it);
+  `ns.StartableWrit(group)` = the first ready writ without a quest. Buttons: `row.start` on Deliveries rows
+  (Window.lua) and on writ lines of the Writ NPCs window, shown out of combat only.
 - `Options.lua`: options page. `Events.lua`: events and `/aca` `/commerce` (`options`, `debug`, `feedback`).
 
 **Twin in Codex:** `Addons/Codex/Modules/Commerce` is this addon ported into Codex (2026-11-19): the same Data,

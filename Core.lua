@@ -485,6 +485,50 @@ local function BagItem(bag, slot)
   end
 end
 
+-- Starts a writ's quest: uses the writ in your bags, as a right-click on it does (2026-11-24, the user's "a button
+-- next to the ready writs to start their quest"). Out of combat only, and never while a vendor, the bank, mail, trade,
+-- the guild bank or the auction house is open (UseContainerItem would sell or move the writ there). Returns true, or
+-- false and why.
+local START_BLOCKERS = { "MerchantFrame", "BankFrame", "MailFrame", "TradeFrame", "GuildBankFrame", "AuctionHouseFrame" }
+function ns.StartWrit(writID)
+  if InCombatLockdown and InCombatLockdown() then
+    return false, "Writs can't be started in a fight."
+  end
+  for _, name in ipairs(START_BLOCKERS) do
+    local frame = _G[name]
+    if type(frame) == "table" and frame.IsShown and frame:IsShown() then
+      return false, "Close the vendor, bank, mail, trade or auction house window first: it would take the writ."
+    end
+  end
+  local use = (C_Container and C_Container.UseContainerItem) or UseContainerItem
+  if type(use) ~= "function" then
+    return false, "This game version can't use bag items from an addon."
+  end
+  local lastBag = (NUM_BAG_SLOTS or 4) + ((NUM_REAGENTBAG_SLOTS or 0) > 0 and NUM_REAGENTBAG_SLOTS or 0)
+  for bag = 0, lastBag do
+    for slot = 1, BagSlots(bag) do
+      if BagItem(bag, slot) == writID then
+        local ok = pcall(use, bag, slot)
+        if ok then
+          return true
+        end
+        return false, "The game didn't let the writ be used."
+      end
+    end
+  end
+  return false, "The writ isn't in your bags."
+end
+
+-- The first writ of a delivery group that can be started: ready (your bags hold what it asks for) and not opened.
+function ns.StartableWrit(group)
+  for _, entry in ipairs(group and group.writs or {}) do
+    if entry.ready and not entry.questID then
+      return entry.writID
+    end
+  end
+  return nil
+end
+
 -- { [itemID] = count } for everything in your bags.
 function ns.BagCounts()
   local counts = {}

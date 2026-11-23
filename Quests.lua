@@ -277,6 +277,35 @@ end
 
 -- `options` (the Writ NPCs window's filters): { tier = "Journeyman" / "Expert" / "Artisan" (nil: every level),
 -- mine = true (only writs your crafting professions make), notDone = true (only writs not turned in today) }.
+-- The continent a zone lies on: its map ID and name (the Writ NPCs window groups its zones under them, the user's
+-- request 2026-11-24). Walks C_Map.GetMapInfo's parents up to the continent (Enum.UIMapType.Continent); the
+-- classic zones' continents are known too while the map data isn't there.
+ns.CONTINENTS = { [1414] = "Kalimdor", [1415] = "Eastern Kingdoms" }
+ns.ZONE_CONTINENT = { [2548] = 1415 } -- Forever's own zones (the game's UiMap table): Riverglades
+function ns.ContinentOf(mapID)
+  local id, steps = mapID, 0
+  local continent = Enum and Enum.UIMapType and Enum.UIMapType.Continent or 2
+  while id and steps < 8 and C_Map and C_Map.GetMapInfo do
+    local ok, info = pcall(C_Map.GetMapInfo, id)
+    if not ok or type(info) ~= "table" then
+      break
+    end
+    if info.mapType == continent then
+      return id, info.name or ns.CONTINENTS[id] or "?"
+    end
+    id, steps = info.parentMapID, steps + 1
+  end
+  if ns.ZONE_CONTINENT[mapID] then
+    local id = ns.ZONE_CONTINENT[mapID]
+    return id, ns.CONTINENTS[id]
+  elseif type(mapID) == "number" and mapID >= 1416 and mapID <= 1437 then
+    return 1415, ns.CONTINENTS[1415]
+  elseif type(mapID) == "number" and mapID >= 1438 and mapID <= 1452 then
+    return 1414, ns.CONTINENTS[1414]
+  end
+  return 0, "Other zones"
+end
+
 function ns.CustomerDirectory(counts, search, options)
   local held = ns.HeldWrits(counts)
   local mine = options and options.mine and ns.PlayerProfessions() or nil
