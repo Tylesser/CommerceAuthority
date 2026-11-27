@@ -1,9 +1,11 @@
 local _, ns = ...
 local L = ns.L
 
--- The Commerce Authority window (/aca): reputation and Merchant's Favor, what your bags are worth, the writs
--- you hold grouped by who takes them (with waypoints), how far each standing is, the cheapest reputation on the auction house
--- (with a buy list for Auctionator) and this session's turn-ins.
+-- The Commerce Authority window (/aca), in two tabs (2026-11-28, the user's request: writs and crates are not the
+-- same thing, give crates their own section). Writs: reputation, the writs in your bags, the ones you hold grouped
+-- by who takes them (with waypoints), how far each standing is and the cheapest reputation on the auction house
+-- (with a buy list for Auctionator). Crates: Merchant's Favor, the crates in your bags, the ones you have to fill
+-- and every crate on the auction house by crate price + cheapest fill. Under both: this session's turn-ins.
 
 local WIDTH = 400
 local HEIGHT = 580
@@ -11,6 +13,8 @@ local PAD = 16
 local INNER = WIDTH - PAD * 2
 local CHEAP_ROWS = 8
 local DELIVERY_ROWS = 4
+local FILL_ROWS = 5 -- the Crates tab: crates to fill
+local RANK_ROWS = 13 -- the Crates tab: the crate ranking (scrolls)
 -- the cheapest list's rankings, switched by one button
 local MODE_LABELS = { writ = L["By writ"], npc = L["By NPC"], zone = L["By zone"] }
 local NEXT_MODE = { writ = "npc", npc = "zone", zone = "writ" }
@@ -19,6 +23,7 @@ local MODE_HELP = {
   npc = L["The NPCs who take writs, by what buying all their priced writs costs per 100 reputation: one shopping list, one trip."],
   zone = L["Zones, by what buying all the priced writs their NPCs take costs per 100 reputation: one shopping list, one trip around the zone."],
 }
+local crateOffset = 0 -- the crate ranking scrolls (with the mouse wheel)
 local window
 
 -- "1 writ" / "5 writs" and the like.
@@ -142,8 +147,27 @@ local function ZoneTooltip(row)
   GameTooltip:Show()
 end
 
-local function CheapRow(index)
-  local row = CreateFrame("Button", nil, window)
+-- A crate of the By crate ranking (row.ranked, from ns.CheapestCrates): what it costs and what it gives.
+local function RankedCrateTooltip(row)
+  local entry = row.ranked
+  GameTooltip:SetOwner(row, "ANCHOR_RIGHT")
+  GameTooltip:AddLine(entry.name)
+  GameTooltip:AddLine(L["About %s Merchant's Favor"]:format(ns.Number(entry.favor)), 1, 1, 1)
+  GameTooltip:AddDoubleLine(L["The crate"], ns.Money(entry.price), 1, 1, 1, 1, 1, 1)
+  if entry.fill then
+    GameTooltip:AddDoubleLine(L["Fill: %d %s"]:format(entry.fill.count, entry.fill.name), ns.Money(entry.fillCost),
+      1, 1, 1, 1, 1, 1)
+  else
+    GameTooltip:AddLine(L["Already filled: turn it in as it is."], 0.6, 0.6, 0.6, true)
+  end
+  GameTooltip:AddDoubleLine(L["Total"], ns.Money(entry.total), 1, 0.82, 0, 1, 0.82, 0)
+  GameTooltip:AddDoubleLine(L["Per Merchant's Favor"], ns.Money(entry.perFavor), 0.25, 1, 0.25, 0.25, 1, 0.25)
+  GameTooltip:AddLine(L["Click at the auction house to search for the crate and what fills it, else put both on the buy list. Shift-click to link it."], 0.6, 0.6, 0.6, true)
+  GameTooltip:Show()
+end
+
+local function CheapRow(index, parent)
+  local row = CreateFrame("Button", nil, parent or window)
   row:SetSize(INNER, 16)
   local highlight = row:CreateTexture(nil, "HIGHLIGHT")
   highlight:SetAllPoints()
@@ -166,7 +190,9 @@ local function CheapRow(index)
   row.cost:SetPoint("RIGHT", -2, 0)
   row.cost:SetJustifyH("RIGHT")
   row:SetScript("OnEnter", function(self)
-    if self.zone then
+    if self.ranked then
+      RankedCrateTooltip(self)
+    elseif self.zone then
       ZoneTooltip(self)
     elseif self.group then
       CustomerTooltip(self)
@@ -175,11 +201,27 @@ local function CheapRow(index)
     end
   end)
   row:SetScript("OnLeave", HideTooltip)
+  row:EnableMouseWheel(true)
+  row:SetScript("OnMouseWheel", function(self, delta)
+    if self.rankList then -- (the crate ranking scrolls; the writ lists show their top rows)
+      crateOffset = math.max(crateOffset - delta, 0)
+      ns.RefreshWindow()
+    end
+  end)
   row:SetScript("OnClick", function(self)
-    if self.writID and IsShiftKeyDown and IsShiftKeyDown() then
-      local link = ns.ItemLink(self.writID)
+    local linkID = self.writID or (self.ranked and self.ranked.itemID)
+    if linkID and IsShiftKeyDown and IsShiftKeyDown() then
+      local link = ns.ItemLink(linkID)
       if link and ChatEdit_InsertLink then
         ChatEdit_InsertLink(link)
+      end
+      return
+    end
+    if self.ranked then
+      if ns.AuctionHouseOpen() then
+        ns.SearchRankedCrate(self.ranked)
+      else
+        ns.CreateRankedCrateBuyList(self.ranked)
       end
       return
     end
@@ -296,8 +338,8 @@ local function DeliveryTooltip(row)
   GameTooltip:Show()
 end
 
-local function DeliveryRow()
-  local row = CreateFrame("Button", nil, window)
+local function DeliveryRow(parent)
+  local row = CreateFrame("Button", nil, parent or window)
   row:SetSize(INNER, 18)
   local highlight = row:CreateTexture(nil, "HIGHLIGHT")
   highlight:SetAllPoints()
@@ -389,13 +431,41 @@ local function Create()
     table.insert(UISpecialFrames, "CommerceAuthorityWindow")
   end
 
-  window.faction = Text(window, "GameFontNormal")
-  window.faction:SetPoint("TOPLEFT", PAD, -44)
+  -- the two tabs and their panes (each pane covers the window; its parts keep window coordinates)
+  window.panes, window.tabs = {}, {}
+  for index, key in ipairs({ "writs", "crates" }) do
+    local pane = CreateFrame("Frame", nil, window)
+    pane:SetAllPoints(window)
+    pane:Hide()
+    window.panes[key] = pane
+    local tab = T.Button(window, 96, 22, key == "writs" and L["Writs"] or L["Crates"])
+    tab:SetPoint("TOPLEFT", PAD + (index - 1) * 100, -38)
+    tab.mark = tab:CreateTexture(nil, "OVERLAY")
+    tab.mark:SetPoint("BOTTOMLEFT", 3, 2)
+    tab.mark:SetPoint("BOTTOMRIGHT", -3, 2)
+    tab.mark:SetHeight(2)
+    tab.mark:SetColorTexture(T.GOLD[1], T.GOLD[2], T.GOLD[3], 1)
+    tab.key = key
+    tab:SetScript("OnClick", function()
+      ns.SelectWindowTab(key)
+    end)
+    window.tabs[key] = tab
+  end
+  local writs, crates = window.panes.writs, window.panes.crates
+  local function PaneHeading(pane, y, text)
+    local heading = T.Heading(pane, text, INNER)
+    heading:SetPoint("TOPLEFT", PAD, y)
+    return heading
+  end
+
+  -- Writs ------------------------------------------------------------------------------------------------
+  window.faction = Text(writs, "GameFontNormal")
+  window.faction:SetPoint("TOPLEFT", PAD, -70)
   window.faction:SetPoint("RIGHT", -PAD, 0)
   window.faction:SetWordWrap(false)
 
-  local bar = CreateFrame("Frame", nil, window)
-  bar:SetPoint("TOPLEFT", PAD, -64)
+  local bar = CreateFrame("Frame", nil, writs)
+  bar:SetPoint("TOPLEFT", PAD, -90)
   bar:SetSize(INNER, 12)
   local barBack = bar:CreateTexture(nil, "BACKGROUND")
   barBack:SetAllPoints()
@@ -413,22 +483,17 @@ local function Create()
   bar.text:SetPoint("CENTER")
   window.bar = bar
 
-  window.favor = Text(window)
-  window.favor:SetPoint("TOPLEFT", PAD, -84)
-  window.favor:SetPoint("RIGHT", -PAD, 0)
-  window.favor:SetWordWrap(false)
-
-  Heading(-106, L["In your bags"])
-  window.bags = Text(window)
-  window.bags:SetPoint("TOPLEFT", PAD, -126)
+  PaneHeading(writs, -112, L["In your bags"])
+  window.bags = Text(writs)
+  window.bags:SetPoint("TOPLEFT", PAD, -132)
   window.bags:SetPoint("RIGHT", -PAD, 0)
   window.bags:SetSpacing(2)
 
   -- shorter on both sides (title still centred like the others), leaving room for the button at the right
-  local deliveries = T.Heading(window, L["Deliveries"], INNER - 2 * 84)
-  deliveries:SetPoint("TOP", window, "TOP", 0, -192)
-  local allNPCs = T.Button(window, 76, 18, L["All NPCs"])
-  allNPCs:SetPoint("RIGHT", window, "TOPRIGHT", -PAD, -200) -- vertically on the heading's middle
+  local deliveries = T.Heading(writs, L["Deliveries"], INNER - 2 * 84)
+  deliveries:SetPoint("TOP", window, "TOP", 0, -176)
+  local allNPCs = T.Button(writs, 76, 18, L["All NPCs"])
+  allNPCs:SetPoint("RIGHT", window, "TOPRIGHT", -PAD, -184) -- vertically on the heading's middle
   allNPCs:SetScript("OnClick", function()
     ns.ToggleNPCWindow()
   end)
@@ -442,23 +507,23 @@ local function Create()
   allNPCs:SetScript("OnLeave", HideTooltip)
   window.deliveries = {}
   for index = 1, DELIVERY_ROWS do
-    local row = DeliveryRow()
-    row:SetPoint("TOPLEFT", PAD, -210 - (index - 1) * 18)
+    local row = DeliveryRow(writs)
+    row:SetPoint("TOPLEFT", PAD, -194 - (index - 1) * 18)
     window.deliveries[index] = row
   end
-  window.noDeliveries = Text(window, "GameFontDisableSmall")
-  window.noDeliveries:SetPoint("TOPLEFT", PAD + 2, -212)
+  window.noDeliveries = Text(writs, "GameFontDisableSmall")
+  window.noDeliveries:SetPoint("TOPLEFT", PAD + 2, -196)
   window.noDeliveries:SetPoint("RIGHT", -PAD, 0)
 
-  Heading(-290, L["Next standings"])
-  window.goals = Text(window)
-  window.goals:SetPoint("TOPLEFT", PAD, -310)
+  PaneHeading(writs, -276, L["Next standings"])
+  window.goals = Text(writs)
+  window.goals:SetPoint("TOPLEFT", PAD, -296)
   window.goals:SetPoint("RIGHT", -PAD, 0)
   window.goals:SetSpacing(2)
 
-  Heading(-364, L["Cheapest reputation"])
-  local mine = T.Check(window, L["Only my professions"], "GameFontHighlightSmall")
-  mine:SetPoint("TOPLEFT", PAD - 4, -380)
+  window.cheapHeading = PaneHeading(writs, -356, L["Cheapest reputation"])
+  local mine = T.Check(writs, L["Only my professions"], "GameFontHighlightSmall")
+  mine:SetPoint("TOPLEFT", PAD - 4, -372)
   mine:SetScript("OnShow", function(self)
     self:SetChecked(CommerceAuthorityDB.onlyMyProfessions)
   end)
@@ -470,8 +535,8 @@ local function Create()
   mine:SetChecked(CommerceAuthorityDB.onlyMyProfessions)
   ns.FitCheck(mine)
   window.mine = mine
-  local mode = T.Button(window, 84, 20, MODE_LABELS[ns.CheapestMode()])
-  mode:SetPoint("TOPLEFT", PAD + 160, -381)
+  local mode = T.Button(writs, 84, 20, MODE_LABELS[ns.CheapestMode()])
+  mode:SetPoint("TOPLEFT", PAD + 160, -373)
   mode:SetScript("OnClick", function(self)
     ns.SetCheapestMode(NEXT_MODE[ns.CheapestMode()])
     self:SetText(MODE_LABELS[ns.CheapestMode()])
@@ -489,8 +554,8 @@ local function Create()
   end)
   mode:SetScript("OnLeave", HideTooltip)
   window.mode = mode
-  local buy = T.Button(window, 96, 20, L["Buy list"])
-  buy:SetPoint("TOPRIGHT", -PAD, -381)
+  local buy = T.Button(writs, 96, 20, L["Buy list"])
+  buy:SetPoint("TOPRIGHT", -PAD, -373)
   buy:SetScript("OnClick", function()
     if ns.CheapestMode() == "zone" then
       ns.CreateZoneBuyList(ns.CheapestZones(1)[1])
@@ -536,13 +601,71 @@ local function Create()
 
   window.rows = {}
   for index = 1, CHEAP_ROWS do
-    local row = CheapRow(index)
-    row:SetPoint("TOPLEFT", PAD, -406 - (index - 1) * 16)
+    local row = CheapRow(index, writs)
+    row:SetPoint("TOPLEFT", PAD, -398 - (index - 1) * 16)
     window.rows[index] = row
   end
-  window.empty = Text(window, "GameFontDisableSmall")
-  window.empty:SetPoint("TOPLEFT", PAD + 2, -408)
+  window.empty = Text(writs, "GameFontDisableSmall")
+  window.empty:SetPoint("TOPLEFT", PAD + 2, -400)
   window.empty:SetPoint("RIGHT", -PAD, 0)
+
+  -- Crates -----------------------------------------------------------------------------------------------
+  window.favor = Text(crates, "GameFontNormal")
+  window.favor:SetPoint("TOPLEFT", PAD, -70)
+  window.favor:SetPoint("RIGHT", -PAD, 0)
+  window.favor:SetWordWrap(false)
+
+  PaneHeading(crates, -92, L["In your bags"])
+  window.crateBags = Text(crates)
+  window.crateBags:SetPoint("TOPLEFT", PAD, -112)
+  window.crateBags:SetPoint("RIGHT", -PAD, 0)
+  window.crateBags:SetSpacing(2)
+
+  PaneHeading(crates, -150, L["Crates to fill"])
+  window.fills = {}
+  for index = 1, FILL_ROWS do
+    local row = DeliveryRow(crates)
+    row:SetPoint("TOPLEFT", PAD, -168 - (index - 1) * 18)
+    window.fills[index] = row
+  end
+  window.noFills = Text(crates, "GameFontDisableSmall")
+  window.noFills:SetPoint("TOPLEFT", PAD + 2, -170)
+  window.noFills:SetPoint("RIGHT", -PAD, 0)
+
+  PaneHeading(crates, -266, L["Cheapest Merchant's Favor"])
+  window.rankHint = Text(crates, "GameFontDisableSmall")
+  window.rankHint:SetPoint("TOPLEFT", PAD + 2, -288)
+  window.rankHint:SetPoint("RIGHT", -PAD - 104, 0)
+  window.rankHint:SetWordWrap(false)
+  window.rankHint:SetText(L["Crate price + its cheapest fill, cheapest first"])
+  local rankBuy = T.Button(crates, 96, 20, L["Buy list"])
+  rankBuy:SetPoint("TOPRIGHT", -PAD, -283)
+  rankBuy:SetScript("OnClick", function()
+    ns.CreateRankedCrateBuyList(ns.CheapestCrates(1)[1])
+  end)
+  rankBuy:SetScript("OnEnter", function(self)
+    GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+    GameTooltip:AddLine(L["Buy list"])
+    local entry = ns.CheapestCrates(1)[1]
+    GameTooltip:AddLine(L["Makes the Auctionator shopping list \"%s\" with the cheapest crate and what fills it. Click a crate's row for that crate."]:format(ns.SHOPPING_LIST), 1, 1, 1, true)
+    if entry then
+      GameTooltip:AddLine(L["%s: about %s for %s Favor"]:format(entry.name, ns.Money(entry.total),
+        ns.Number(entry.favor)), 0.25, 1, 0.25)
+    end
+    GameTooltip:Show()
+  end)
+  rankBuy:SetScript("OnLeave", HideTooltip)
+  window.rankBuy = rankBuy
+  window.rankRows = {}
+  for index = 1, RANK_ROWS do
+    local row = CheapRow(index, crates)
+    row.rankList = true
+    row:SetPoint("TOPLEFT", PAD, -310 - (index - 1) * 16)
+    window.rankRows[index] = row
+  end
+  window.rankEmpty = Text(crates, "GameFontDisableSmall")
+  window.rankEmpty:SetPoint("TOPLEFT", PAD + 2, -312)
+  window.rankEmpty:SetPoint("RIGHT", -PAD, 0)
 
   window.session = Text(window, "GameFontDisableSmall")
   window.session:SetPoint("BOTTOMLEFT", PAD, 14)
@@ -550,9 +673,35 @@ local function Create()
   window.session:SetWordWrap(false)
 
   RestorePosition(window)
+  ns.SelectWindowTab(CommerceAuthorityDB.windowTab, true)
   window:Hide()
 end
 
+-- Shows a tab of the window ("writs" or "crates"; anything else = writs), saved for next time.
+function ns.SelectWindowTab(key, quiet)
+  key = key == "crates" and "crates" or "writs"
+  if CommerceAuthorityDB then
+    CommerceAuthorityDB.windowTab = key
+  end
+  if not window then
+    return
+  end
+  for name, pane in pairs(window.panes) do
+    pane:SetShown(name == key)
+    local tab = window.tabs[name]
+    tab.mark:SetShown(name == key)
+    if tab.label and tab.label.SetTextColor then
+      local color = name == key and ns.T.GOLD or { 0.75, 0.75, 0.75 }
+      tab.label:SetTextColor(color[1], color[2], color[3])
+    end
+  end
+  window.tab = key
+  if not quiet then
+    ns.RefreshWindow()
+  end
+end
+
+-- The Writs tab's "In your bags": writs and sealed writs.
 local function Bags(summary)
   local lines = {}
   if summary.writs > 0 then
@@ -562,6 +711,15 @@ local function Bags(summary)
     lines[#lines + 1] = L["%d sealed writs: %s reputation once done"]:format(summary.sealedWrits,
       ns.Number(summary.sealedRep))
   end
+  if #lines == 0 then
+    return L["No writs in your bags."]
+  end
+  return table.concat(lines, "\n")
+end
+
+-- The Crates tab's "In your bags": filled crates and crates to fill.
+local function CrateBags(summary)
+  local lines = {}
   if summary.crates > 0 then
     lines[#lines + 1] = L["%d filled crates: about %s Favor + %s"]:format(summary.crates,
       ns.Number(ns.ExpectedFavor(summary.crateFavor)), ns.Money(summary.crateFavor * ns.COPPER_PER_FAVOR))
@@ -571,7 +729,7 @@ local function Bags(summary)
       ns.Number(ns.ExpectedFavor(summary.fillFavor)))
   end
   if #lines == 0 then
-    return L["No writs or crates in your bags."]
+    return L["No crates in your bags."]
   end
   return table.concat(lines, "\n")
 end
@@ -629,18 +787,9 @@ end
 
 local function Deliveries(counts)
   local groups = ns.Deliveries(counts)
-  -- the writs first, then the crates you still have to fill
-  local entries = {}
-  for _, group in ipairs(groups) do
-    entries[#entries + 1] = { group = group }
-  end
-  for _, crate in ipairs(ns.CratesToFill(counts)) do
-    entries[#entries + 1] = { crate = crate }
-  end
   for index, row in ipairs(window.deliveries) do
-    local entry = entries[index]
-    local group, crate = entry and entry.group, entry and entry.crate
-    row.group, row.crate = group, crate
+    local group = groups[index]
+    row.group, row.crate = group, nil
     if group then
       row.name:SetText(DeliveryText(group))
       row.way:SetShown(group.customer ~= nil or group.writs[1].questID ~= nil)
@@ -648,25 +797,45 @@ local function Deliveries(counts)
       row.start:SetShown(startable)
       row.name:SetPoint("RIGHT", startable and row.start or row.way, "LEFT", -6, 0)
       row:Show()
-    elseif crate then
-      row.name:SetText(CrateText(crate))
-      row.way:Hide()
-      row.start:Hide()
-      row.name:SetPoint("RIGHT", row.way, "LEFT", -6, 0)
-      row:Show()
     else
       row:Hide()
     end
   end
-  groups = entries
   if #groups == 0 then
-    window.noDeliveries:SetText(L["No writs or crates. The writs you hold show here, grouped by who takes them, then the crates you have to fill."])
+    window.noDeliveries:SetText(L["No writs. The writs you hold show here, grouped by who takes them."])
   elseif #groups > DELIVERY_ROWS then
     window.noDeliveries:SetText("")
     local last = window.deliveries[DELIVERY_ROWS]
     last.name:SetText(last.name:GetText() .. " |cff999999" .. L["+%d more"]:format(#groups - DELIVERY_ROWS) .. "|r")
   else
     window.noDeliveries:SetText("")
+  end
+end
+
+-- The Crates tab: the Waylaid Crates in your bags that still need filling, the cheapest fill on each row.
+local function Fills(counts)
+  local crates = ns.CratesToFill(counts)
+  for index, row in ipairs(window.fills) do
+    local crate = crates[index]
+    row.group, row.crate = nil, crate
+    row.way:Hide()
+    row.start:Hide()
+    if crate then
+      row.name:SetText(CrateText(crate))
+      row.name:SetPoint("RIGHT", row, "RIGHT", -2, 0)
+      row:Show()
+    else
+      row:Hide()
+    end
+  end
+  if #crates == 0 then
+    window.noFills:SetText(L["No crates to fill. The Waylaid Crates in your bags show here, with the cheapest way to fill each."])
+  elseif #crates > FILL_ROWS then
+    window.noFills:SetText("")
+    local last = window.fills[FILL_ROWS]
+    last.name:SetText(last.name:GetText() .. " |cff999999" .. L["+%d more"]:format(#crates - FILL_ROWS) .. "|r")
+  else
+    window.noFills:SetText("")
   end
 end
 
@@ -711,6 +880,38 @@ local function CheapestByZone(counts)
     end
   end
   return #zones
+end
+
+-- "Waylaid Crate: Journeyman Ore (10)" with "45s · 4s 50c / Favor", the Crates tab's ranking: crate price plus the
+-- cheapest fill, scrolled by crateOffset (mouse wheel).
+local function CrateRanking()
+  local crates = ns.CheapestCrates()
+  crateOffset = math.min(crateOffset, math.max(#crates - RANK_ROWS, 0))
+  for index, row in ipairs(window.rankRows) do
+    local entry = crates[crateOffset + index]
+    CheapLayout(row, false)
+    row.name:SetPoint("RIGHT", -150, 0)
+    row.ranked = entry
+    if entry then
+      row.name:SetText(("%s |cff999999(%s)|r"):format(entry.name, ns.Number(entry.favor)))
+      row.cost:SetText(("%s |cff999999· %s|r"):format(ns.ShortMoney(entry.total),
+        L["%s / Favor"]:format(ns.ShortMoney(entry.perFavor))))
+      row:Show()
+    else
+      row:Hide()
+    end
+  end
+  if #crates > 0 then
+    window.rankEmpty:SetText("")
+    window.rankHint:SetText(#crates > RANK_ROWS
+      and L["Crate price + its cheapest fill, cheapest first (%d-%d of %d, scroll for more)"]:format(crateOffset + 1,
+        math.min(crateOffset + RANK_ROWS, #crates), #crates)
+      or L["Crate price + its cheapest fill, cheapest first"])
+  elseif #ns.PriceSourceNames() == 0 then
+    window.rankEmpty:SetText(L["Install Auctionator, TradeSkillMaster or Auctioneer to see auction prices."])
+  else
+    window.rankEmpty:SetText(L["No priced crates yet. Scan the auction house, or search for \"%s\"."]:format("Waylaid Crate"))
+  end
 end
 
 local function Cheapest(counts)
@@ -791,6 +992,9 @@ function ns.RefreshWindow()
   Deliveries(counts)
   window.goals:SetText(Goals(faction, bagRep))
   Cheapest(counts)
+  window.crateBags:SetText(CrateBags(summary))
+  Fills(counts)
+  CrateRanking()
 
   local session = ns.session
   window.session:SetText(L["This session: +%s Favor, +%s reputation, %d crates, %d writs"]:format(
@@ -834,4 +1038,19 @@ end
 
 function ns.Window()
   return window
+end
+
+-- The window, made the first time it is needed (Dock.lua opens it beside the auction house).
+function ns.EnsureWindow()
+  if not window then
+    Create()
+  end
+  return window
+end
+
+-- Back to the player's own place (after it was docked beside the auction house).
+function ns.RestoreWindowPosition()
+  if window then
+    RestorePosition(window)
+  end
 end

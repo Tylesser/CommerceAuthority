@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.6.0
+
+- **Beside the auction house**: the window opens docked to the auction house's right edge when you open it, and closes with it. When it's closed, a Commerce Authority button on the auction house's edge opens it. Drag it away to keep it open where you put it. Option **Open beside the auction house** (on by default).
+- **Writs and crates in their own tabs**: the window has a **Writs** tab (standing, your writs, deliveries, next standings, the cheapest reputation) and a **Crates** tab (Merchant's Favor, your crates, the crates you have to fill and the cheapest Merchant's Favor). The tab you used last opens next time.
+- **Cheapest Merchant's Favor** on the Crates tab: every crate on the auction house by what turning it in costs: the crate's price plus the cheapest way to fill it (a Sealed crate's price alone), cheapest first, with the cost per Favor. Scroll it with the mouse wheel. Click a crate at the auction house to search for it and everything that fills it, elsewhere to put it and its cheapest fill on the buy list.
+- **Crate fills come with their amount**: when you click a crate at the auction house and pick one of the items that fill it, the buy box already holds how many your crates still need (less what your bags hold), in Auctionator's buy view and in the game's own. You still press Buy yourself.
+- **Clearer options page**: a thin line now separates each option from the next.
+- **Tylesser settings window**: the options now open in a window of their own with room for everything, every Tylesser addon you have listed on its left. Options > AddOns has one **Tylesser** entry that opens it.
+
 ## 1.5.0
 
 - **In your language**: German, French, Spanish, Russian and Brazilian Portuguese game clients now show the addon in their language (other clients stay in English). Russian clients get the game's own font for headings, since the addon's fonts have no Cyrillic letters.

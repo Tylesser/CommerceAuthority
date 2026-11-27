@@ -23,5 +23,6 @@ Vendor.lua
 Shopping.lua
 Window.lua
 NPCs.lua
+Dock.lua
 Options.lua
 Events.lua

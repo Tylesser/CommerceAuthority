@@ -158,7 +158,7 @@ function ns.CreateCrateBuyList(crate)
     end
     return false
   end
-  local need = math.max(option.count * crate.count - option.owned, 0)
+  local need = ns.CrateNeed(crate, option) or 0
   if need == 0 then
     Say(L["your bags already hold enough %s to fill %s."]:format(option.name, crate.info.name))
     return false
@@ -196,41 +196,174 @@ local function BlizzardSearch(term)
   return false
 end
 
--- Searches the open auction house for everything that fills a crate (an entry of ns.CratesToFill), cheapest first.
--- With Auctionator every item at once, else the game's search box with the cheapest. Returns true when started.
-function ns.SearchCrate(crate)
-  if not (crate and ns.AuctionHouseOpen()) then
+-- How many of one fill item (an entry of crate.options) all the crates of that kind still need, less what your
+-- bags hold; nil when the bags hold enough.
+function ns.CrateNeed(crate, option)
+  local need = (option.count or 0) * (crate.count or 1) - (option.owned or 0)
+  return need > 0 and need or nil
+end
+
+-- The amount to buy in the game's own commodity buy view (2026-11-27, the user's request: a crate's fill item opens
+-- with the amount the crates need). `wanted[itemID]` = amount, kept for a few minutes after a crate search. Done the
+-- way typing in its box does it (forever Blizzard_AuctionHouseCommoditiesBuyFrame.lua: the QuantityInput's changed
+-- callback triggers CommoditiesQuantitySelectionChanged, which BuyDisplay and the list listen to); again a frame
+-- after the item's results come (before them the game can't total the price or cap the amount at what is on sale).
+-- Nothing is bought: the player still presses Buy. (Auctionator's own buy view takes the amount from the search.)
+local wanted, wantedUntil, pending = {}, 0, nil
+local WANT_SECONDS = 300
+
+local function SetBuyQuantity()
+  local frame = AuctionHouseFrame
+  local display = frame and frame.CommoditiesBuyFrame and frame.CommoditiesBuyFrame.BuyDisplay
+  if not (display and display.QuantityInput and display.GetItemID and display:IsShown()) or GetTime() > wantedUntil then
     return false
   end
-  local terms = {}
-  for _, option in ipairs(crate.options) do
-    terms[#terms + 1] = option.name
-  end
-  if #terms == 0 then
-    Say(L["no known fill for %s."]:format(crate.info.name))
+  local ok, itemID = pcall(display.GetItemID, display)
+  local quantity = ok and itemID and wanted[itemID]
+  if not quantity then
     return false
   end
+  pcall(display.QuantityInput.SetQuantity, display.QuantityInput, quantity)
+  local event = AuctionHouseFrameMixin and AuctionHouseFrameMixin.Event
+    and AuctionHouseFrameMixin.Event.CommoditiesQuantitySelectionChanged
+  if event and frame.TriggerEvent then
+    pcall(frame.TriggerEvent, frame, event, quantity)
+  elseif display.SetQuantitySelected then
+    pcall(display.SetQuantitySelected, display, quantity)
+  end
+  return true
+end
+
+local watcher
+local function WatchBuyView()
+  local buy = AuctionHouseFrame and AuctionHouseFrame.CommoditiesBuyFrame
+  if watcher or not (buy and buy.SetItemIDAndPrice and hooksecurefunc and CreateFrame) then
+    return
+  end
+  watcher = CreateFrame("Frame")
+  hooksecurefunc(buy, "SetItemIDAndPrice", function(_, itemID)
+    pending = itemID and wanted[itemID] and GetTime() <= wantedUntil and itemID or nil
+    if pending then
+      SetBuyQuantity()
+    end
+  end)
+  watcher:RegisterEvent("COMMODITY_SEARCH_RESULTS_UPDATED")
+  watcher:SetScript("OnEvent", function(_, _, itemID)
+    if pending and itemID == pending then
+      pending = nil -- once: after a purchase the game's own reset to 1 stays
+      C_Timer.After(0, SetBuyQuantity)
+    end
+  end)
+end
+
+-- Searches the open auction house for `searches` ({ searchString, quantity, itemID }) and keeps their amounts for the
+-- buy view. With Auctionator every item at once ("auctionator"), else the game's search box with the first
+-- ("blizzard"). Returns how, or nil.
+local function SearchItems(searches)
+  local terms, advanced = {}, {}
+  wanted, wantedUntil = {}, GetTime() + WANT_SECONDS
+  for _, search in ipairs(searches) do
+    terms[#terms + 1] = search.searchString
+    advanced[#advanced + 1] = { searchString = search.searchString, isExact = true, quantity = search.quantity }
+    if search.quantity and search.itemID then
+      wanted[search.itemID] = search.quantity
+    end
+  end
+  pcall(WatchBuyView)
   local api = Auctionator and Auctionator.API and Auctionator.API.v1
-  if api and api.MultiSearchExact then
-    local ok, err = pcall(api.MultiSearchExact, addonName, terms)
+  if api and (api.MultiSearchAdvanced or api.MultiSearchExact) then
+    local ok, err
+    if api.MultiSearchAdvanced then
+      ok, err = pcall(api.MultiSearchAdvanced, addonName, advanced)
+    else
+      ok, err = pcall(api.MultiSearchExact, addonName, terms)
+    end
     if ok then
-      if #terms == 1 then
-        Say(L["searching the auction house: what fills %s (1 item)."]:format(crate.info.name))
-      else
-        Say(L["searching the auction house: what fills %s (%d items)."]:format(crate.info.name, #terms))
-      end
-      return true
+      return "auctionator"
     end
     Say(L["Auctionator couldn't search: %s"]:format(tostring(err)))
   end
   local ok, started = pcall(BlizzardSearch, terms[1])
   if ok and started then
-    if #terms > 1 then
-      Say(L["searching for %s; install Auctionator to search all %d fills at once."]:format(terms[1], #terms))
-    end
-    return true
+    return "blizzard"
   end
-  return false
+  return nil
+end
+
+-- Searches the open auction house for everything that fills a crate (an entry of ns.CratesToFill), cheapest first.
+-- With Auctionator every item at once, else the game's search box with the cheapest. Returns true when started.
+-- Picking a result opens the buy view with the amount the crates still need (Auctionator's or the game's).
+function ns.SearchCrate(crate)
+  if not (crate and ns.AuctionHouseOpen()) then
+    return false
+  end
+  local searches = {}
+  for _, option in ipairs(crate.options) do
+    searches[#searches + 1] = { searchString = option.name, quantity = ns.CrateNeed(crate, option),
+      itemID = option.itemID }
+  end
+  if #searches == 0 then
+    Say(L["no known fill for %s."]:format(crate.info.name))
+    return false
+  end
+  local how = SearchItems(searches)
+  if how == "auctionator" then
+    if #searches == 1 then
+      Say(L["searching the auction house: what fills %s (1 item)."]:format(crate.info.name))
+    else
+      Say(L["searching the auction house: what fills %s (%d items)."]:format(crate.info.name, #searches))
+    end
+  elseif how == "blizzard" and #searches > 1 then
+    Say(L["searching for %s; install Auctionator to search all %d fills at once."]:format(searches[1].searchString,
+      #searches))
+  end
+  return how ~= nil
+end
+
+-- A crate from the By crate ranking (an entry of ns.CheapestCrates): searches the open auction house for the crate
+-- and every item that fills it (one crate's worth each, the cheapest first). Returns true when a search started.
+function ns.SearchRankedCrate(entry)
+  if not (entry and ns.AuctionHouseOpen()) then
+    return false
+  end
+  local searches = { { searchString = entry.name, quantity = 1, itemID = entry.itemID } }
+  if not entry.info.filled then
+    for _, option in ipairs(ns.CrateFillOptions(entry.info)) do
+      searches[#searches + 1] = { searchString = option.name, quantity = option.count, itemID = option.itemID }
+    end
+  end
+  local how = SearchItems(searches)
+  if how == "auctionator" then
+    Say(L["searching the auction house: %s and what fills it."]:format(entry.name))
+  elseif how == "blizzard" and #searches > 1 then
+    Say(L["searching for %s; install Auctionator to search for what fills it at the same time."]:format(entry.name))
+  end
+  return how ~= nil
+end
+
+-- The buy list for a crate from the By crate ranking: the crate and its cheapest fill.
+function ns.CreateRankedCrateBuyList(entry)
+  local api = API()
+  if not (api and entry) then
+    return false
+  end
+  local searches = { api.ConvertToSearchString(addonName, { searchString = entry.name, isExact = true, quantity = 1 }) }
+  if entry.fill then
+    searches[2] = api.ConvertToSearchString(addonName, { searchString = entry.fill.name, isExact = true,
+      quantity = entry.fill.count })
+  end
+  local ok, err = pcall(api.CreateShoppingList, addonName, ns.SHOPPING_LIST, searches)
+  if not ok then
+    Say(L["Auctionator couldn't make the list: %s"]:format(tostring(err)))
+    return false
+  end
+  if entry.fill then
+    Say(L["shopping list \"%s\": %s and %d %s to fill it, about %s."]:format(ns.SHOPPING_LIST, entry.name,
+      entry.fill.count, entry.fill.name, ns.Money(entry.total)))
+  else
+    Say(L["shopping list \"%s\": %s, about %s."]:format(ns.SHOPPING_LIST, entry.name, ns.Money(entry.total)))
+  end
+  return true
 end
 
 -- Searches the open auction house for writs you don't hold yet, and the items asked for by those and by your

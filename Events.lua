@@ -11,7 +11,7 @@ eventFrame:RegisterEvent("PLAYER_ENTERING_WORLD")
 local EVENTS = {
   "QUEST_COMPLETE", "QUEST_TURNED_IN", "CURRENCY_DISPLAY_UPDATE", "CHAT_MSG_COMBAT_FACTION_CHANGE",
   "BAG_UPDATE_DELAYED", "UPDATE_FACTION", "QUEST_LOG_UPDATE", "SKILL_LINES_CHANGED", "SPELLS_CHANGED",
-  "TRAIT_CONFIG_UPDATED",
+  "TRAIT_CONFIG_UPDATED", "AUCTION_HOUSE_SHOW", "AUCTION_HOUSE_CLOSED",
 }
 
 local function Setup()
@@ -53,6 +53,10 @@ eventFrame:SetScript("OnEvent", function(self, event, ...)
     end
   elseif event == "CHAT_MSG_COMBAT_FACTION_CHANGE" then
     ns.OnRepMessage((...))
+  elseif event == "AUCTION_HOUSE_SHOW" then
+    ns.OnAuctionHouseShow()
+  elseif event == "AUCTION_HOUSE_CLOSED" then
+    ns.OnAuctionHouseClosed()
   else
     if event == "SKILL_LINES_CHANGED" or event == "SPELLS_CHANGED" or event == "TRAIT_CONFIG_UPDATED" then
       ns.InvalidateCheapest()

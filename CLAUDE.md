@@ -56,7 +56,11 @@ Durotar Supply and Logistics (Horde, west of the Crossroads), currency Merchant'
   fill options, bag counts, `ns.CheapestWrits` (cached 10 s; `ns.InvalidateCheapest`), `ns.CheapestCustomers`
   (the cheapest list grouped by customer, minus writs in your bags: all priced writs averaged, which the user
   wants kept), `ns.CheapestZones` (those NPCs grouped by map); the window's ranking button `ns.CheapestMode()`
-  (`cheapestBy` writ/npc/zone; the old `cheapestByNPC` is still read). Learned amounts are read with `ns.UsualValue` (most
+  (`cheapestBy` writ/npc/zone; the old `cheapestByNPC` is still read). `ns.CheapestCrates(max)` (2026-11-28,
+  the user's request): every priced crate of `CRATE_ITEMS` / `SEALED_CRATE_ITEMS`, total = crate price + cheapest
+  priced fill (sealed: price alone), sorted by total, then per Favor; the window's Crates tab (scrolls with the
+  wheel; a click searches the crate + every fill at the AH, `ns.SearchRankedCrate`, else
+  `ns.CreateRankedCrateBuyList`). Learned amounts are read with `ns.UsualValue` (most
   common value seen).
 - `Learn.lua`: learns real amounts; each turn-in is its own record with its own bag snapshot (QUEST_COMPLETE) and
   timer. Favor arriving while the dialog is open or up to 3 s after QUEST_TURNED_IN is that turn-in's; it is
@@ -86,9 +90,24 @@ Durotar Supply and Logistics (Horde, west of the Crossroads), currency Merchant'
   game's single pin only the first. `ns.SearchWrits(writIDs, held)`: clicks while the AH is open
   (`ns.AuctionHouseOpen`) search the writs you don't hold and the items not-ready ones need, with Auctionator's
   `MultiSearchExact` (its Shopping tab), else the game's search box (`AuctionHouseFrame.SearchBar`, or the legacy
-  `BrowseName`) with the first name.
+  `BrowseName`) with the first name. `ns.SearchCrate` (2026-11-27, the user's request) sends each fill with the
+  amount the crates need (`ns.CrateNeed`): Auctionator's `MultiSearchAdvanced` with `quantity` (its own buy view
+  takes it as `purchaseQuantity`), and for the game's buy view a hook on
+  `AuctionHouseFrame.CommoditiesBuyFrame:SetItemIDAndPrice` that sets the box like typing does (Codex's
+  `A.SetBuyQuantity` twin), again after `COMMODITY_SEARCH_RESULTS_UPDATED`. Never buys.
+- `Dock.lua` (2026-11-28, the user's request for an AH tab or side panel): the window itself is the side panel.
+  AUCTION_HOUSE_SHOW (a frame later) opens it docked TOPLEFT to the AH's TOPRIGHT (right of `CodexAuctionPanel`
+  when that shows there) when `auctionDock` (default on) and it isn't open; AUCTION_HOUSE_CLOSED closes it if the
+  AH opened it. A "Commerce Authority" button (parented to UIParent, only anchored to the AH) shows on that edge
+  while the window is closed. Dragging or closing undocks (`ns.RestoreWindowPosition`). No tab: the AH's tabs are
+  Blizzard's (and Auctionator's).
 - `Window.lua`: the `/aca` window (`CommerceAuthorityWindow`, in UISpecialFrames so Esc closes it); refreshes go
-  through `ns.RequestRefresh` (at most twice a second, only while shown).
+  through `ns.RequestRefresh` (at most twice a second, only while shown). Two tabs since 2026-11-28 (the user: writs
+  and crates are not the same thing): `window.panes.writs` / `.crates` (full-window frames, parts keep window
+  coordinates), `window.tabs`, `ns.SelectWindowTab(key)` (saved in `windowTab`). Writs: `window.deliveries` (writs
+  only), `window.rows` (By writ / NPC / zone). Crates: `window.favor`, `window.crateBags`, `window.fills`
+  (`ns.CratesToFill`), `window.rankRows` (`ns.CheapestCrates`, `rankList` rows scroll with the wheel),
+  `window.rankBuy`. `ns.CheapestMode` maps an old saved "crate" to "writ".
 - `NPCs.lua`: the Writ NPCs window (`/aca npcs`, "All NPCs" button; `CommerceAuthorityNPCWindow`, position in
   `npcPosition`): flat lines (zone header, NPC header, its writs, then "NPC not known yet" and those writs) shown in fixed rows
   scrolled with the mouse wheel; search box (`InputBoxTemplate` + `T.EditBox`). Refreshed by `ns.RequestRefresh`.

@@ -7,7 +7,10 @@ ns.TITLE = "Tylesser - Commerce Authority"
 local function CreateCheck(parent, anchor, label, description, key, onChange)
   local check = ns.T.Check(parent, label)
   if anchor then
-    check:SetPoint("TOPLEFT", anchor, "BOTTOMLEFT", -26, -12)
+    -- a line between two options (the user's request, 2026-11-28: the page's sections ran together)
+    local divider = ns.T.Divider(parent, 540, 13)
+    divider:SetPoint("TOPLEFT", anchor, "BOTTOMLEFT", -26, -6)
+    check:SetPoint("TOPLEFT", divider, "BOTTOMLEFT", 0, -6)
   else
     check:SetPoint("TOPLEFT", parent, "TOPLEFT", 14, ns.T.OPTIONS_TOP)
   end
@@ -52,9 +55,14 @@ function ns.CreateOptions()
   _, help = CreateCheck(panel, help, L["Prices from every auction addon"],
     L["When more than one price addon is installed (Auctionator, TradeSkillMaster, Auctioneer), show all their prices instead of only the first."],
     "allSources")
+  _, help = CreateCheck(panel, help, L["Open beside the auction house"],
+    L["When the auction house opens, the window opens beside it and closes with it. The Commerce Authority button on the auction house's edge opens it too."],
+    "auctionDock")
 
   local sources = panel:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-  sources:SetPoint("TOPLEFT", help, "BOTTOMLEFT", -26, -18)
+  local sourcesLine = ns.T.Divider(panel, 540, 13)
+  sourcesLine:SetPoint("TOPLEFT", help, "BOTTOMLEFT", -26, -8)
+  sources:SetPoint("TOPLEFT", sourcesLine, "BOTTOMLEFT", 0, -8)
   sources:SetWidth(540)
   sources:SetJustifyH("LEFT")
   panel:HookScript("OnShow", function()
@@ -93,23 +101,11 @@ function ns.CreateOptions()
     GameTooltip:Hide()
   end)
 
-  if Settings and Settings.RegisterCanvasLayoutCategory and Settings.RegisterAddOnCategory then
-    local category = Settings.RegisterCanvasLayoutCategory(panel, ns.TITLE)
-    Settings.RegisterAddOnCategory(category)
-    ns.optionsCategory = category
-  elseif InterfaceOptions_AddCategory then
-    InterfaceOptions_AddCategory(panel)
-  end
+  -- shown in Tylesser's own settings window (Tylesser.lua T.RegisterOptions, 2026-11-28)
+  ns.optionsCategory = ns.T.RegisterOptions(panel, ns.TITLE)
   ns.optionsPanel = panel
 end
 
 function ns.OpenOptions()
-  if ns.optionsCategory and Settings and Settings.OpenToCategory then
-    local id = ns.optionsCategory.GetID and ns.optionsCategory:GetID() or ns.optionsCategory.ID
-    Settings.OpenToCategory(id)
-  elseif ns.optionsPanel and InterfaceOptionsFrame_OpenToCategory then
-    -- called twice: the first call only opens the frame on some clients
-    InterfaceOptionsFrame_OpenToCategory(ns.optionsPanel)
-    InterfaceOptionsFrame_OpenToCategory(ns.optionsPanel)
-  end
+  ns.T.OpenOptions(ns.optionsCategory)
 end
