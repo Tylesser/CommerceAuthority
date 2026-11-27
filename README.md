@@ -44,6 +44,8 @@ Each crate also pays half a silver per Favor. All WoW Forever writs are counted 
 
 None. For auction prices, install Auctionator, TradeSkillMaster or Auctioneer and scan the auction house.
 
+Optional: [Tylesser - Data](https://tylesser.com/tylesserdata/) fills in what the addon doesn't know yet (who takes the last Artisan writs, the Favor of Artisan and Elite crates) from what players recorded with Tylesser - Collector.
+
 ## Usage
 
 | Command | Action |
@@ -56,6 +58,8 @@ None. For auction prices, install Auctionator, TradeSkillMaster or Auctioneer an
 | `/aca feedback` | Get the link to report a bug or suggest an idea |
 
 The window can be dragged anywhere. Shift-click a writ in the cheapest list to link it in chat.
+
+Languages: English, German, French, Spanish (Spain and Mexico), Russian and Brazilian Portuguese, following your game client.
 
 ## Feedback
 

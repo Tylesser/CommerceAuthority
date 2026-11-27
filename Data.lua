@@ -7,9 +7,18 @@ local _, ns = ...
 
 ns.FAVOR_CURRENCY = 3402 -- Merchant's Favor
 ns.FACTION_NAMES = { Alliance = "Azeroth Commerce Authority", Horde = "Durotar Supply and Logistics" }
+-- By ID (Forever's Faction table on wago.tools), so other languages find them too (2026-11-27: the names above
+-- are English and the game gives the client's own).
+ns.FACTION_IDS = { Alliance = 2586, Horde = 2587 }
 ns.HUBS = {
   Alliance = "Three Corners, Redridge Mountains (10, 72)",
   Horde = "west of the Crossroads, The Barrens (49, 29)",
+}
+-- The hubs by area ID (Forever's AreaTable: Three Corners 1002 in Redridge Mountains 44, The Crossroads 380 in The
+-- Barrens 17), so the place names come from the game in the client's language (2026-11-27, translations).
+ns.HUB_AREAS = {
+  Alliance = { place = 1002, placeName = "Three Corners", zone = 44, zoneName = "Redridge Mountains", spot = "10, 72" },
+  Horde = { place = 380, placeName = "the Crossroads", zone = 17, zoneName = "The Barrens", spot = "49, 29", west = true },
 }
 
 -- Legacy talents: Performance Bonus (15% chance of 100% more Favor from a crate) and Diplomat (+10% reputation).
@@ -99,7 +108,7 @@ ns.WRITS = {
   [264057] = { 3823, 1, "Lesser Invisibility Potion" },
   [264058] = { 4623, 1, "Lesser Stoneshield Potion" },
   [264059] = { 6052, 1, "Nature Protection Potion" },
-  [264060] = { false, 1, "Catseye Draught" },
+  [264060] = { 10592, 1, "Catseye Draught" },
   [264061] = { 5633, 1, "Great Rage Potion" },
   [264062] = { 3827, 1, "Mana Potion" },
   [264063] = { 6049, 1, "Fire Protection Potion" },
@@ -128,7 +137,7 @@ ns.WRITS = {
   [264086] = { 4852, 1, "Flash Bomb" },
   [264087] = { 10500, 1, "Fire Goggles" },
   [264088] = { 10514, 1, "Mithril Frag Bomb" },
-  [264089] = { false, 1, "Gyromatic Micro-Adjuster" },
+  [264089] = { 10498, 1, "Gyromatic Micro-Adjuster" }, -- the item is spelled "Micro-Adjustor"
   [264090] = { 11590, 1, "Mechanical Repair Kit" },
   [264091] = { 16005, 1, "Dark Iron Bomb" },
   [264092] = { 8174, 1, "Comfortable Leather Hat" },
@@ -158,7 +167,7 @@ ns.WRITS = {
   [264116] = { false, 1, "Potion of Demonslaying" },
   [264117] = { 12190, 1, "Dreamless Sleep Potion" },
   [264118] = { 13457, 1, "Greater Fire Protection Potion" },
-  [264119] = { false, 1, "Draught of Detect Demon" },
+  [264119] = { 9233, 1, "Draught of Detect Demon" },
   [264120] = { 9088, 1, "Gift of Arthas" },
   [264121] = { 13513, 1, "Flask of Chromatic Resistance" },
   [264122] = { 3387, 1, "Limited Invulnerability Potion" },
@@ -176,7 +185,7 @@ ns.WRITS = {
   [264134] = { 16023, 1, "Masterwork Target Dummy" },
   [264135] = { 10504, 1, "Green Lens" },
   [264136] = { 15996, 1, "Lifelike Mechanical Toad" },
-  [264137] = { false, 1, "Gnomish Alarm-O-Bot" },
+  [264137] = { 18645, 1, "Gnomish Alarm-O-Bot" },
   [264138] = { 18587, 1, "Goblin Jumper Cables XL" },
   [264139] = { 18232, 1, "Field Repair Bot 74A" },
   [264140] = { 18631, 1, "Truesilver Transformer" },
@@ -453,6 +462,11 @@ ns.CRATE_ITEMS = {
   [248708] = { "Expert", "Cloth" }, [248709] = { "Expert", "Bars" }, [248710] = { "Expert", "Parts" },
   [248711] = { "Artisan", "Cloth" }, [248712] = { "Artisan", "Bars" }, [248713] = { "Artisan", "Parts" },
 }
+-- Crates that aren't one kind yet (2026-11-27): the plain Waylaid Crate (using it reads its label and turns it into
+-- a crate of one kind: Forever's spell 1247168 "Read the label to identify the shipment") and Waylaid Herbs (a package
+-- with a shipping bill: the bill's text lives on the game's servers, not in its files, so it is shown from players'
+-- data, Tylesser - Data, once someone has read one).
+ns.UNREAD_CRATES = { [248549] = "label", [275642] = "bill" }
 ns.SEALED_CRATE_ITEMS = {
   [248765] = "Apprentice", [248766] = "Journeyman", [248767] = "Expert", [248768] = "Artisan", [248769] = "Elite",
   [248770] = "Apprentice", [248771] = "Journeyman", [248772] = "Expert", [248773] = "Artisan", [248774] = "Elite",

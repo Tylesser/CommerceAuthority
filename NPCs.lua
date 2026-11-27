@@ -1,4 +1,5 @@
 local _, ns = ...
+local L = ns.L
 
 -- The Writ NPCs window (/aca npcs, or "All NPCs" in the main window): every NPC who takes Craftsman's Writs,
 -- grouped by zone, with all the writs it takes and which of them you hold, so you can collect the writs of a
@@ -58,11 +59,15 @@ local function HideTooltip()
   GameTooltip:Hide()
 end
 
+local function Writs(count)
+  return count == 1 and L["1 writ"] or L["%d writs"]:format(count)
+end
+
 local function WritLabel(writID)
   local writ = ns.WRITS[writID]
   local tier = ns.WritTier(writID)
   local rep = ns.WritReputation(writID)
-  return ("%s |cff999999(%s, %s)|r"):format(writ and writ[3] or ("item " .. writID), tier and tier.name or "?",
+  return ("%s |cff999999(%s, %s)|r"):format(writ and writ[3] or L["item %d"]:format(writID), ns.TierName(tier and tier.name),
     rep and ns.Number(rep) or "?")
 end
 
@@ -70,8 +75,7 @@ end
 -- "1 of 5 yours · 6g 20s" or "5 writs · 6g 20s": how many are yours, and what buying the rest costs ("+" when
 -- some of them have no auction price yet).
 local function CountAndCost(held, count, cost, unpriced)
-  local text = held > 0 and ("|cff40ff40%d of %d yours|r"):format(held, count)
-    or ("%d writ%s"):format(count, count == 1 and "" or "s")
+  local text = held > 0 and ("|cff40ff40" .. L["%d of %d yours"]:format(held, count) .. "|r") or Writs(count)
   if cost > 0 then
     text = text .. (" |cff999999· %s%s|r"):format(ns.ShortMoney(cost), unpriced > 0 and "+" or "")
   end
@@ -82,15 +86,24 @@ local function WritState(writID, held)
   local mine = held[writID]
   if mine then
     if mine.ready then
-      return "|cff40ff40yours, ready|r"
+      return "|cff40ff40" .. L["yours, ready"] .. "|r"
     end
-    return mine.questID and "|cffffd100yours, needs the item|r" or "|cffffffffyours, not opened|r"
+    return mine.questID and ("|cffffd100" .. L["yours, needs the item"] .. "|r")
+      or ("|cffffffff" .. L["yours, not opened"] .. "|r")
   end
   if ns.WritDoneToday(writID) then
-    return "|cff999999done today|r"
+    return "|cff999999" .. L["done today"] .. "|r"
   end
   local total = ns.WritCost(writID)
-  return total and ("|cff999999%s|r"):format(ns.Money(total)) or "|cff666666no AH price|r"
+  return total and ("|cff999999%s|r"):format(ns.Money(total)) or ("|cff666666" .. L["no AH price"] .. "|r")
+end
+
+-- "Buying the others: 6g on the auction house, plus 2 with no price yet."
+local function BuyingOthers(cost, unpriced)
+  if unpriced > 0 then
+    return L["Buying the others: %s on the auction house, plus %d with no price yet."]:format(ns.Money(cost), unpriced)
+  end
+  return L["Buying the others: %s on the auction house."]:format(ns.Money(cost))
 end
 
 -- Rows ----------------------------------------------------------------------------------------------------
@@ -107,41 +120,36 @@ local function OnEnter(row)
     else
       GameTooltip:SetHyperlink("item:" .. line.writID)
     end
-    GameTooltip:AddLine("Click at the auction house to search for it. Shift-click to link it.", 0.6, 0.6, 0.6)
+    GameTooltip:AddLine(L["Click at the auction house to search for it. Shift-click to link it."], 0.6, 0.6, 0.6)
   elseif line.kind == "continent" then
     local continent = line.continent
     GameTooltip:AddLine(continent.name)
-    GameTooltip:AddLine(("%d zones, %d NPCs, %d writs; you hold %d."):format(#continent.zones, continent.npcs,
+    GameTooltip:AddLine(L["%d zones, %d NPCs, %d writs; you hold %d."]:format(#continent.zones, continent.npcs,
       continent.writs, continent.held), 1, 1, 1)
-    GameTooltip:AddLine("Click to fold its zones.", 0.6, 0.6, 0.6, true)
+    GameTooltip:AddLine(L["Click to fold its zones."], 0.6, 0.6, 0.6, true)
   elseif line.kind == "zone" then
     local zone = line.zone
     GameTooltip:AddLine(zone.name)
-    GameTooltip:AddLine(("%d NPCs take %d writs here; you hold %d."):format(#zone.npcs, zone.writs, zone.held),
+    GameTooltip:AddLine(L["%d NPCs take %d writs here; you hold %d."]:format(#zone.npcs, zone.writs, zone.held),
       1, 1, 1)
     if zone.cost > 0 then
-      GameTooltip:AddLine(("Buying the others: %s on the auction house%s."):format(ns.Money(zone.cost),
-        zone.unpriced > 0 and (", plus %d with no price yet"):format(zone.unpriced) or ""), 0.25, 1, 0.25, true)
+      GameTooltip:AddLine(BuyingOthers(zone.cost, zone.unpriced), 0.25, 1, 0.25, true)
     end
-    GameTooltip:AddLine("Click at the auction house: search for the writs here you don't have, and their items. "
-      .. "Way: waypoints to the NPCs here (all of them with TomTom, else the first).", 0.6, 0.6, 0.6, true)
+    GameTooltip:AddLine(L["Click at the auction house: search for the writs here you don't have, and their items. Way: waypoints to the NPCs here (all of them with TomTom, else the first)."], 0.6, 0.6, 0.6, true)
   elseif line.kind == "npc" then
     local customer = line.group.customer
     GameTooltip:AddLine(customer.name)
     GameTooltip:AddLine(("%s %.1f, %.1f%s"):format(line.group.zone, customer.x, customer.y,
-      customer.learned and " (seen at your turn-in)" or ""), 0.6, 0.6, 0.6)
-    GameTooltip:AddLine(("Takes %d writs; you hold %d."):format(#line.group.writs, line.group.held), 1, 1, 1)
+      customer.learned and (" " .. L["(seen at your turn-in)"]) or customer.collected and (" " .. L["(players' data)"])
+      or ""), 0.6, 0.6, 0.6)
+    GameTooltip:AddLine(L["Takes %d writs; you hold %d."]:format(#line.group.writs, line.group.held), 1, 1, 1)
     if line.group.cost > 0 then
-      GameTooltip:AddLine(("Buying the others: %s on the auction house%s."):format(ns.Money(line.group.cost),
-        line.group.unpriced > 0 and (", plus %d with no price yet"):format(line.group.unpriced) or ""), 0.25, 1,
-        0.25, true)
+      GameTooltip:AddLine(BuyingOthers(line.group.cost, line.group.unpriced), 0.25, 1, 0.25, true)
     end
-    GameTooltip:AddLine("Click at the auction house: search for its writs you don't have, and their items. Way: "
-      .. "waypoint to " .. customer.name .. ".", 0.6, 0.6, 0.6, true)
+    GameTooltip:AddLine(L["Click at the auction house: search for its writs you don't have, and their items. Way: waypoint to %s."]:format(customer.name), 0.6, 0.6, 0.6, true)
   else
-    GameTooltip:AddLine("Who takes these isn't known yet")
-    GameTooltip:AddLine("Use the writ and the game marks the spot on your map. The addon remembers the NPC once "
-      .. "you turn one in.", 1, 1, 1, true)
+    GameTooltip:AddLine(L["Who takes these isn't known yet"])
+    GameTooltip:AddLine(L["Use the writ and the game marks the spot on your map. The addon remembers the NPC once you turn one in."], 1, 1, 1, true)
   end
   GameTooltip:Show()
 end
@@ -152,9 +160,9 @@ local function Row()
   local highlight = row:CreateTexture(nil, "HIGHLIGHT")
   highlight:SetAllPoints()
   highlight:SetColorTexture(ns.T.GOLD[1], ns.T.GOLD[2], ns.T.GOLD[3], 0.12)
-  row.way = ns.T.Button(row, 40, 15, "Way")
+  row.way = ns.T.Button(row, 40, 15, L["Way"])
   row.way:SetPoint("RIGHT", 0, 0)
-  row.start = ns.T.Button(row, 44, 15, "Start")
+  row.start = ns.T.Button(row, 44, 15, L["Start"])
   row.start:SetPoint("RIGHT", 0, 0)
   row.start:SetScript("OnClick", function()
     local line = row.line
@@ -250,8 +258,8 @@ local function ShowLine(row, line, held)
     row.way:Hide()
     row.name:SetPoint("LEFT", 18, 0)
     row.name:SetPoint("RIGHT", -150, 0)
-    row.name:SetText(("|cffffd100%s|r |cff999999%d zone%s|r"):format(continent.name, #continent.zones,
-      #continent.zones == 1 and "" or "s"))
+    row.name:SetText(("|cffffd100%s|r |cff999999%s|r"):format(continent.name,
+      #continent.zones == 1 and L["1 zone"] or L["%d zones"]:format(#continent.zones)))
     row.state:SetPoint("RIGHT", -2, 0)
     row.state:SetText(CountAndCost(continent.held, continent.writs, continent.cost, continent.unpriced))
   elseif line.kind == "zone" then
@@ -259,8 +267,8 @@ local function ShowLine(row, line, held)
     row.way:Show()
     row.name:SetPoint("LEFT", 30, 0)
     row.name:SetPoint("RIGHT", -206, 0)
-    row.name:SetText(("|cffff9933%s|r |cff999999%d NPC%s|r"):format(zone.name, #zone.npcs,
-      #zone.npcs == 1 and "" or "s"))
+    row.name:SetText(("|cffff9933%s|r |cff999999%s|r"):format(zone.name,
+      #zone.npcs == 1 and L["1 NPC"] or L["%d NPCs"]:format(#zone.npcs)))
     row.state:SetPoint("RIGHT", -46, 0)
     row.state:SetText(CountAndCost(zone.held, zone.writs, zone.cost, zone.unpriced))
   elseif line.kind == "npc" then
@@ -286,7 +294,7 @@ local function ShowLine(row, line, held)
     row.way:Hide()
     row.name:SetPoint("LEFT", 18, 0)
     row.name:SetPoint("RIGHT", -2, 0)
-    row.name:SetText(("|cffffd100NPC not known yet|r |cff999999(%d writs)|r"):format(line.count))
+    row.name:SetText(("|cffffd100%s|r |cff999999(%s)|r"):format(L["NPC not known yet"], L["%d writs"]:format(line.count)))
     row.state:SetPoint("RIGHT", -2, 0)
     row.state:SetText("")
   end
@@ -326,7 +334,7 @@ local function Create()
     Scroll(delta)
   end)
   T.Stone(frame)
-  T.TitleBar(frame, "Writ NPCs")
+  T.TitleBar(frame, L["Writ NPCs"])
   local close = T.CloseButton(frame)
   close:SetPoint("TOPRIGHT", -10, -9)
   close:SetScript("OnClick", function()
@@ -343,7 +351,7 @@ local function Create()
   T.EditBox(search)
   search.hint = Text(search, "GameFontDisableSmall")
   search.hint:SetPoint("LEFT", 2, 0)
-  search.hint:SetText("Search an NPC, zone or writ")
+  search.hint:SetText(L["Search an NPC, zone or writ"])
   search:SetScript("OnTextChanged", function(self)
     self.hint:SetShown(self:GetText() == "")
     offset = 0
@@ -357,7 +365,7 @@ local function Create()
   end)
   frame.search = search
 
-  local level = T.Button(frame, 96, 20, "All levels")
+  local level = T.Button(frame, 96, 20, L["All levels"])
   level:SetPoint("TOPLEFT", PAD, -72)
   level:SetScript("OnClick", function()
     local db = CommerceAuthorityDB
@@ -373,13 +381,13 @@ local function Create()
   end)
   level:SetScript("OnEnter", function(self)
     GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-    GameTooltip:AddLine("Writ level")
-    GameTooltip:AddLine("Click to show every level, or only Journeyman, Expert or Artisan writs.", 1, 1, 1, true)
+    GameTooltip:AddLine(L["Writ level"])
+    GameTooltip:AddLine(L["Click to show every level, or only Journeyman, Expert or Artisan writs."], 1, 1, 1, true)
     GameTooltip:Show()
   end)
   level:SetScript("OnLeave", HideTooltip)
   frame.level = level
-  local mine = T.Check(frame, "My professions", "GameFontHighlightSmall")
+  local mine = T.Check(frame, L["My professions"], "GameFontHighlightSmall")
   mine:SetPoint("LEFT", level, "RIGHT", 10, 0)
   mine:SetScript("OnClick", function(self)
     CommerceAuthorityDB.npcMine = self:GetChecked() and true or false
@@ -388,7 +396,7 @@ local function Create()
   end)
   ns.FitCheck(mine)
   frame.mine = mine
-  local notDone = T.Check(frame, "Not done today", "GameFontHighlightSmall")
+  local notDone = T.Check(frame, L["Not done today"], "GameFontHighlightSmall")
   notDone:SetPoint("LEFT", mine.label or mine.Text or mine, "RIGHT", 8, 0)
   notDone:SetScript("OnClick", function(self)
     CommerceAuthorityDB.npcNotDone = self:GetChecked() and true or false
@@ -397,9 +405,8 @@ local function Create()
   end)
   notDone:SetScript("OnEnter", function(self)
     GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-    GameTooltip:AddLine("Not done today")
-    GameTooltip:AddLine("Every writ can be turned in once a day: show only the ones you haven't turned in since the "
-      .. "daily reset.", 1, 1, 1, true)
+    GameTooltip:AddLine(L["Not done today"])
+    GameTooltip:AddLine(L["Every writ can be turned in once a day: show only the ones you haven't turned in since the daily reset."], 1, 1, 1, true)
     GameTooltip:Show()
   end)
   notDone:SetScript("OnLeave", function()
@@ -407,7 +414,7 @@ local function Create()
   end)
   ns.FitCheck(notDone)
   frame.notDone = notDone
-  local foldAll = T.Button(frame, 80, 20, "Fold all")
+  local foldAll = T.Button(frame, 80, 20, L["Fold all"])
   foldAll:SetPoint("TOPRIGHT", -PAD, -72)
   foldAll:SetScript("OnClick", function()
     local db = CommerceAuthorityDB
@@ -469,7 +476,7 @@ function ns.RefreshNPCWindow(keep)
     local text = frame.search:GetText() or ""
     local directory = ns.CustomerDirectory(nil, text:lower():match("^%s*(.-)%s*$"),
       { tier = db.npcTier, mine = db.npcMine, notDone = db.npcNotDone })
-    frame.level:SetText(db.npcTier or "All levels")
+    frame.level:SetText(db.npcTier and ns.TierName(db.npcTier) or L["All levels"])
     frame.mine:SetChecked(db.npcMine and true or false)
     frame.notDone:SetChecked(db.npcNotDone and true or false)
     held = directory.held
@@ -528,8 +535,8 @@ function ns.RefreshNPCWindow(keep)
         end
       end
     end
-    frame.foldAll:SetText(anyOpen and "Fold all" or "Unfold all")
-    frame.summary:SetText(("%d NPCs in %d zones take %d writs; %d with no known NPC. You hold %d."):format(
+    frame.foldAll:SetText(anyOpen and L["Fold all"] or L["Unfold all"])
+    frame.summary:SetText(L["%d NPCs in %d zones take %d writs; %d with no known NPC. You hold %d."]:format(
       #directory.npcs, #directory.zones, writs, #directory.unknown, mine))
     offset = math.min(offset, math.max(#lines - ROWS, 0))
   end
@@ -543,9 +550,9 @@ function ns.RefreshNPCWindow(keep)
     end
   end
   if #lines == 0 then
-    frame.footer:SetText("Nothing matches.")
+    frame.footer:SetText(L["Nothing matches."])
   elseif #lines > ROWS then
-    frame.footer:SetText(("Lines %d-%d of %d. Scroll with the mouse wheel."):format(offset + 1,
+    frame.footer:SetText(L["Lines %d-%d of %d. Scroll with the mouse wheel."]:format(offset + 1,
       math.min(offset + ROWS, #lines), #lines))
   else
     frame.footer:SetText("")

@@ -1,4 +1,5 @@
 local _, ns = ...
+local L = ns.L
 
 -- Options page: Esc > Options > AddOns > Tylesser - Commerce Authority
 ns.TITLE = "Tylesser - Commerce Authority"
@@ -32,25 +33,25 @@ function ns.CreateOptions()
   local panel = CreateFrame("Frame")
   panel.name = ns.TITLE
   ns.T.OptionsPage(panel, "Commerce Authority",
-    "Craftsman's Writs, Waylaid Crates, reputation and Merchant's Favor for the Azeroth Commerce Authority "
-      .. "and Durotar Supply and Logistics. Type /aca for the window.")
+    L["Craftsman's Writs, Waylaid Crates, reputation and Merchant's Favor for the %s and %s. Type %s for the window."]:format(
+      ns.FactionNameOf("Alliance"), ns.FactionNameOf("Horde"), "/aca"))
 
-  local _, help = CreateCheck(panel, nil, "Writ tooltips",
-    "Craftsman's Writs show the reputation they give, what they ask for, its auction price and the cost per "
-      .. "100 reputation.", "writTooltips")
-  _, help = CreateCheck(panel, help, "Crate tooltips",
-    "Waylaid Crates show the Merchant's Favor and silver they give, and the cheapest way to fill them.",
+  local _, help = CreateCheck(panel, nil, L["Writ tooltips"],
+    L["Craftsman's Writs show the reputation they give, what they ask for, its auction price and the cost per 100 reputation."],
+    "writTooltips")
+  _, help = CreateCheck(panel, help, L["Crate tooltips"],
+    L["Waylaid Crates show the Merchant's Favor and silver they give, and the cheapest way to fill them."],
     "crateTooltips")
-  _, help = CreateCheck(panel, help, "Marks at the Commerce Authority vendors",
-    "Items that cost Merchant's Favor show \"Can buy\" or how much more you need, and their tooltip how many "
-      .. "crates that is.", "vendorMarks", function()
+  _, help = CreateCheck(panel, help, L["Marks at the Commerce Authority vendors"],
+    L["Items that cost Merchant's Favor show \"%s\" or how much more you need, and their tooltip how many crates that is."]
+      :format(L["Can buy"]), "vendorMarks", function()
       if ns.UpdateVendorMarks then
         ns.UpdateVendorMarks()
       end
     end)
-  _, help = CreateCheck(panel, help, "Prices from every auction addon",
-    "When more than one price addon is installed (Auctionator, TradeSkillMaster, Auctioneer), show all their "
-      .. "prices instead of only the first.", "allSources")
+  _, help = CreateCheck(panel, help, L["Prices from every auction addon"],
+    L["When more than one price addon is installed (Auctionator, TradeSkillMaster, Auctioneer), show all their prices instead of only the first."],
+    "allSources")
 
   local sources = panel:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
   sources:SetPoint("TOPLEFT", help, "BOTTOMLEFT", -26, -18)
@@ -59,33 +60,33 @@ function ns.CreateOptions()
   panel:HookScript("OnShow", function()
     local names = ns.PriceSourceNames()
     local talents = {}
-    for _, talent in ipairs({ { "Performance Bonus", ns.HasPerformanceBonus() }, { "Diplomat", ns.HasDiplomat() } }) do
-      talents[#talents + 1] = talent[1] .. (talent[2] and " (yours: counted in)" or " (not taken)")
+    for _, talent in ipairs({ { ns.TalentName(ns.PERFORMANCE_BONUS_SPELL, "Performance Bonus"), ns.HasPerformanceBonus() },
+      { ns.TalentName(ns.DIPLOMAT_SPELL, "Diplomat"), ns.HasDiplomat() } }) do
+      talents[#talents + 1] = talent[1] .. " " .. (talent[2] and L["(yours: counted in)"] or L["(not taken)"])
     end
-    sources:SetText("Price addons found: " .. (#names > 0 and table.concat(names, ", ")
-      or "none. Install Auctionator, TradeSkillMaster or Auctioneer for auction prices.")
-      .. "\nLegacy talents: " .. table.concat(talents, ", ") .. ".")
+    sources:SetText(L["Price addons found: %s"]:format(#names > 0 and table.concat(names, ", ")
+      or L["none. Install Auctionator, TradeSkillMaster or Auctioneer for auction prices."])
+      .. "\n" .. L["Legacy talents: %s."]:format(table.concat(talents, ", ")))
   end)
 
-  local open = ns.T.Button(panel, 140, 24, "Open the window", true)
+  local open = ns.T.Button(panel, 140, 24, L["Open the window"], true)
   open:SetPoint("TOPLEFT", sources, "BOTTOMLEFT", 0, -16)
   open:SetScript("OnClick", ns.ToggleWindow)
 
-  local forget = ns.T.Button(panel, 160, 24, "Forget what was learned")
+  local forget = ns.T.Button(panel, 160, 24, L["Forget what was learned"])
   forget:SetPoint("LEFT", open, "RIGHT", 12, 0)
   forget:SetScript("OnClick", function()
     -- who takes each writ is a fact seen in the game, not an estimate: kept
     local customers = CommerceAuthorityDB.learned.customers or {}
     CommerceAuthorityDB.learned = { crates = {}, writs = {}, customers = customers }
     ns.InvalidateCheapest()
-    print(ns.T.Prefix("Commerce Authority") .. "learned turn-in amounts cleared; the guides' numbers are used again.")
+    print(ns.T.Prefix("Commerce Authority") .. L["learned turn-in amounts cleared; the guides' numbers are used again."])
     ns.RefreshWindow()
   end)
   forget:SetScript("OnEnter", function(self)
     GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-    GameTooltip:AddLine("Forget what was learned")
-    GameTooltip:AddLine("The addon remembers the Merchant's Favor and reputation each crate and writ gave you. "
-      .. "Clear them to go back to the guides' numbers. Who takes each writ is kept.", 1, 1, 1, true)
+    GameTooltip:AddLine(L["Forget what was learned"])
+    GameTooltip:AddLine(L["The addon remembers the Merchant's Favor and reputation each crate and writ gave you. Clear them to go back to the guides' numbers. Who takes each writ is kept."], 1, 1, 1, true)
     GameTooltip:Show()
   end)
   forget:SetScript("OnLeave", function()

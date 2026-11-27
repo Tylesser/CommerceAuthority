@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.5.0
+
+- **In your language**: German, French, Spanish, Russian and Brazilian Portuguese game clients now show the addon in their language (other clients stay in English). Russian clients get the game's own font for headings, since the addon's fonts have no Cyrillic letters.
+- **Fills its gaps from players' data**: with Tylesser - Data installed, writs whose NPC isn't known yet show who takes them and where, and crates show the Merchant's Favor players' recorded turn-ins gave, once someone has collected them with Tylesser - Collector. Your own turn-ins still come first.
+- **The plain Waylaid Crate** says to read its label (using it turns it into a crate of one kind), and **Waylaid Herbs** says to read its shipping bill, or shows the bill from players' data.
+- **Other game languages**: your faction is found by its ID, so the window's standing and the reputation per writ work on every client; "Only my professions" finds your professions in any language; the NPC who takes a writ no longer shows twice when you turned one in on another client.
+- Four writs that only knew their item by name now know its ID (Catseye Draught, Gyromatic Micro-Adjuster, Draught of Detect Demon, Gnomish Alarm-O-Bot), so they get prices and a buy list on every client.
+
 ## 1.4.1
 
 - **Herb crates from Expert on now show their lines**: "Waylaid Crate: Earthly Artisan Herbs" and the other Earthly and Flowering crates showed no Favor, price or fill list in their tooltip. Crates are now known by their item, so this also works in every game language.

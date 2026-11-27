@@ -1,4 +1,5 @@
 local _, ns = ...
+local L = ns.L
 
 ns.defaults = {
   writTooltips = true,      -- writ tooltips: what it needs, prices, reputation
@@ -94,6 +95,17 @@ end
 ns.PERFORMANCE_BONUS_SPELL = 1225456
 ns.DIPLOMAT_SPELL = 1225485
 
+-- A talent's name as the game writes it in the client's language (2026-11-27, translations), else `english`.
+function ns.TalentName(spellID, english)
+  if C_Spell and C_Spell.GetSpellName then
+    local ok, name = pcall(C_Spell.GetSpellName, spellID)
+    if ok and type(name) == "string" and name ~= "" and (not canaccessvalue or canaccessvalue(name)) then
+      return name
+    end
+  end
+  return english
+end
+
 local function Yes(fn, ...)
   if type(fn) ~= "function" then
     return false
@@ -149,6 +161,11 @@ local function IsCommerceFaction(name)
       return true
     end
   end
+  for side in pairs(ns.FACTION_IDS) do
+    if name == ns.FactionNameOf(side) then -- the client's own name
+      return true
+    end
+  end
   return false
 end
 ns.IsCommerceFaction = IsCommerceFaction
@@ -158,9 +175,10 @@ local function Side()
 end
 ns.Side = Side
 
--- Your side's faction name: Azeroth Commerce Authority or Durotar Supply and Logistics.
+-- Your side's faction name: Azeroth Commerce Authority or Durotar Supply and Logistics, in the client's language
+-- (ns.FactionNameOf).
 function ns.MyFactionName()
-  return ns.FACTION_NAMES[Side()] or ns.FACTION_NAMES.Alliance
+  return ns.FactionNameOf(Side())
 end
 
 local function FromModern(data)
@@ -187,6 +205,32 @@ local function FactionByID(factionID)
   end
 end
 
+-- A side's faction name as the game gives it (the client's language; by ID), else the English one.
+function ns.FactionNameOf(side)
+  side = ns.FACTION_IDS[side] and side or "Alliance"
+  local ok, faction = pcall(FactionByID, ns.FACTION_IDS[side])
+  local name = ok and type(faction) == "table" and faction.name
+  if type(name) == "string" and name ~= "" and (not canaccessvalue or canaccessvalue(name)) then
+    return name
+  end
+  return ns.FACTION_NAMES[side]
+end
+
+-- Where your side's trade hub is: "Three Corners, Redridge Mountains (10, 72)", the names from the game.
+function ns.HubText()
+  local hub = ns.HUB_AREAS[ns.Side()] or ns.HUB_AREAS.Alliance
+  local function Area(id, english)
+    local ok, name = false, nil
+    if C_Map and C_Map.GetAreaInfo then
+      ok, name = pcall(C_Map.GetAreaInfo, id)
+    end
+    return ok and type(name) == "string" and name ~= "" and name or english
+  end
+  local place, zone = Area(hub.place, hub.placeName), Area(hub.zone, hub.zoneName)
+  local where = hub.west and L["west of %s, %s"]:format(place, zone) or ("%s, %s"):format(place, zone)
+  return ("%s (%s)"):format(where, hub.spot)
+end
+
 local function FactionByIndex(index)
   if C_Reputation and C_Reputation.GetFactionDataByIndex then
     return FromModern(C_Reputation.GetFactionDataByIndex(index))
@@ -208,9 +252,10 @@ end
 -- found there (saved per side) is only used when the list hides it under a collapsed header.
 function ns.Faction()
   local wanted = ns.MyFactionName()
+  local wantedID = ns.FACTION_IDS[Side()]
   for index = 1, NumFactions() do
     local ok, faction = pcall(FactionByIndex, index)
-    if ok and faction and faction.name == wanted then
+    if ok and faction and ((wantedID and faction.id == wantedID) or faction.name == wanted) then
       if faction.id and CommerceAuthorityDB then
         CommerceAuthorityDB.factionIDs[Side()] = faction.id
       end
@@ -220,7 +265,7 @@ function ns.Faction()
   local savedID = DB().factionIDs and DB().factionIDs[Side()]
   if savedID then
     local ok, faction = pcall(FactionByID, savedID)
-    if ok and faction and faction.name == wanted then
+    if ok and faction and (faction.id == savedID or faction.name == wanted) then
       return faction
     end
   end
@@ -248,10 +293,47 @@ function ns.NextStandings(faction)
   return list
 end
 
+-- Writ levels and professions as the player reads them (the English names stay the keys everywhere else).
+local TIER_TEXT = { Journeyman = L["Journeyman"], Expert = L["Expert"], Artisan = L["Artisan"] }
+function ns.TierName(name)
+  return TIER_TEXT[name] or name or "?"
+end
+
+local PROFESSION_TEXT = { Alchemy = L["Alchemy"], Blacksmithing = L["Blacksmithing"], Engineering = L["Engineering"],
+  Leatherworking = L["Leatherworking"], Tailoring = L["Tailoring"] }
+function ns.ProfessionName(name)
+  return PROFESSION_TEXT[name] or name
+end
+
 -- Professions ---------------------------------------------------------------------------------------
 
 local PROFESSIONS = { Alchemy = true, Blacksmithing = true, Engineering = true, Leatherworking = true,
   Tailoring = true }
+-- By skill line (GetProfessionInfo's 7th value), so other languages match too (2026-11-27); the skill list fallback
+-- has names only: the profession's own spell gives the client's name for it.
+local SKILL_LINES = { [171] = "Alchemy", [164] = "Blacksmithing", [202] = "Engineering", [165] = "Leatherworking",
+  [197] = "Tailoring" }
+local PROFESSION_SPELLS = { Alchemy = 2259, Blacksmithing = 2018, Engineering = 4036, Leatherworking = 2108,
+  Tailoring = 3908 }
+local localProfessions
+local function EnglishProfession(name)
+  if PROFESSIONS[name] then
+    return name
+  end
+  if not localProfessions or next(localProfessions) == nil then
+    localProfessions = {}
+    for english, spellID in pairs(PROFESSION_SPELLS) do
+      local ok, own = false, nil
+      if C_Spell and C_Spell.GetSpellName then
+        ok, own = pcall(C_Spell.GetSpellName, spellID)
+      end
+      if ok and type(own) == "string" and own ~= "" then
+        localProfessions[own] = english
+      end
+    end
+  end
+  return localProfessions[name]
+end
 
 -- { [profession name] = skill } for the crafting professions you have.
 function ns.PlayerProfessions()
@@ -259,9 +341,10 @@ function ns.PlayerProfessions()
   if GetProfessions and GetProfessionInfo then
     for _, index in ipairs({ GetProfessions() }) do
       if index then
-        local ok, name, _, skill = pcall(GetProfessionInfo, index)
-        if ok and name and PROFESSIONS[name] then
-          found[name] = skill or 0
+        local ok, name, _, skill, _, _, _, skillLine = pcall(GetProfessionInfo, index)
+        local english = ok and (SKILL_LINES[skillLine] or EnglishProfession(name))
+        if english then
+          found[english] = skill or 0
         end
       end
     end
@@ -269,8 +352,9 @@ function ns.PlayerProfessions()
   if next(found) == nil and GetNumSkillLines and GetSkillLineInfo then
     for index = 1, GetNumSkillLines() do
       local name, isHeader, _, skill = GetSkillLineInfo(index)
-      if name and not isHeader and PROFESSIONS[name] then
-        found[name] = skill or 0
+      local english = name and not isHeader and EnglishProfession(name)
+      if english then
+        found[english] = skill or 0
       end
     end
   end
@@ -436,8 +520,59 @@ function ns.CrateInfo(itemID, name)
     favor = info.favor * (made and 2 or 1), key = level .. (made and " made" or " raw"), contents = contents }
 end
 
--- Merchant's Favor for a crate: what crates of its level and kind gave you before, else the guide's amount.
--- Returns favor, learned (true when seen), info.
+-- Tylesser - Data (load on demand, if installed): what players' Tylesser - Collector files saw, for what this
+-- addon doesn't know by itself: who takes the Artisan writs missing from WRIT_CUSTOMERS and the Favor a crate gives
+-- (2026-11-27). Loaded the first time it's needed, never in a fight (asked again later then). nil without it.
+local collected -- nil: not tried yet, false: not installed, else the TylesserData API
+function ns.Collected()
+  if collected == nil then
+    if InCombatLockdown and InCombatLockdown() then
+      return nil
+    end
+    collected = false
+    local load = C_AddOns and C_AddOns.LoadAddOn or LoadAddOn
+    if load then
+      pcall(load, "TylesserData")
+    end
+  end
+  -- loaded since (by another addon, or the first try was too early): a cheap check, no second LoadAddOn
+  if not collected and type(TylesserData) == "table" and type(TylesserData.Quest) == "function" then
+    collected = TylesserData
+  end
+  return collected or nil
+end
+
+-- What each crate level and kind ("Expert made") gave at turn-ins players recorded: the quest that takes a Sealed
+-- crate (its required items) and the Merchant's Favor it rewards (base amount, before talents). Built once.
+local collectedFavor
+local function CollectedFavor(key)
+  if not collectedFavor then
+    local data = ns.Collected()
+    if not data then
+      return nil
+    end
+    collectedFavor = {}
+    if type(data.QuestsRequiring) == "function" then
+      for itemID, level in pairs(ns.SEALED_CRATE_ITEMS) do
+        -- the IDs come in blocks of five per quality (raw 248765-248769, made 248770-248774, blue after)
+        local quality = ItemQuality(itemID) or (math.floor((itemID - 248765) / 5) + 1)
+        local made = quality >= 2 and " made" or " raw"
+        local ok, quests = pcall(data.QuestsRequiring, itemID)
+        for _, quest in ipairs(ok and type(quests) == "table" and quests or {}) do
+          local favor = type(quest.currencies) == "table" and tonumber(quest.currencies[ns.FAVOR_CURRENCY])
+          if favor and favor > 0 then
+            collectedFavor[level .. made] = favor
+          end
+        end
+      end
+    end
+  end
+  return collectedFavor[key]
+end
+
+-- Merchant's Favor for a crate: what crates of its level and kind gave you before, else what players' recorded
+-- turn-ins gave (Tylesser - Data), else the guide's amount. Returns favor, learned (true when seen by you or by
+-- players' data), info.
 function ns.CrateFavor(itemID, name)
   local info = ns.CrateInfo(itemID, name)
   if not info then
@@ -446,6 +581,10 @@ function ns.CrateFavor(itemID, name)
   local usual = ns.UsualValue(DB().learned.crates[info.key])
   if usual then
     return usual, true, info
+  end
+  local seen = CollectedFavor(info.key)
+  if seen then
+    return seen, true, info
   end
   return info.favor, false, info
 end
@@ -508,17 +647,17 @@ end
 local START_BLOCKERS = { "MerchantFrame", "BankFrame", "MailFrame", "TradeFrame", "GuildBankFrame", "AuctionHouseFrame" }
 function ns.StartWrit(writID)
   if InCombatLockdown and InCombatLockdown() then
-    return false, "Writs can't be started in a fight."
+    return false, L["Writs can't be started in a fight."]
   end
   for _, name in ipairs(START_BLOCKERS) do
     local frame = _G[name]
     if type(frame) == "table" and frame.IsShown and frame:IsShown() then
-      return false, "Close the vendor, bank, mail, trade or auction house window first: it would take the writ."
+      return false, L["Close the vendor, bank, mail, trade or auction house window first: it would take the writ."]
     end
   end
   local use = (C_Container and C_Container.UseContainerItem) or UseContainerItem
   if type(use) ~= "function" then
-    return false, "This game version can't use bag items from an addon."
+    return false, L["This game version can't use bag items from an addon."]
   end
   local lastBag = (NUM_BAG_SLOTS or 4) + ((NUM_REAGENTBAG_SLOTS or 0) > 0 and NUM_REAGENTBAG_SLOTS or 0)
   for bag = 0, lastBag do
@@ -528,11 +667,11 @@ function ns.StartWrit(writID)
         if ok then
           return true
         end
-        return false, "The game didn't let the writ be used."
+        return false, L["The game didn't let the writ be used."]
       end
     end
   end
-  return false, "The writ isn't in your bags."
+  return false, L["The writ isn't in your bags."]
 end
 
 -- The first writ of a delivery group that can be started: ready (your bags hold what it asks for) and not opened.

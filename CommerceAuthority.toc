@@ -12,6 +12,7 @@
 ## X-Website: https://github.com/Tylesser/CommerceAuthority
 
 Tylesser.lua
+Locales.lua
 Data.lua
 Prices.lua
 Core.lua

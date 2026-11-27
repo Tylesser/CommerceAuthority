@@ -1,4 +1,5 @@
 local _, ns = ...
+local L = ns.L
 
 -- Writ quests in your quest log, who takes each writ (its "customer", an NPC somewhere in the world), the
 -- writs you hold grouped by customer so one trip delivers them all, and waypoints (TomTom when installed,
@@ -85,10 +86,10 @@ local function Waypoint(mapID, x, y, title)
       C_SuperTrack.SetSuperTrackedUserWaypoint(true)
     end
   else
-    print(PREFIX .. ("%s: %s"):format(title or "the writ", where))
+    print(PREFIX .. ("%s: %s"):format(title or L["the writ"], where))
     return false
   end
-  print(PREFIX .. ("waypoint for %s: %s"):format(title or "the writ", where))
+  print(PREFIX .. L["waypoint for %s: %s"]:format(title or L["the writ"], where))
   return true
 end
 
@@ -107,7 +108,7 @@ function ns.SetWritWaypoint(questID, title)
   elseif ToggleWorldMap then
     ToggleWorldMap()
   end
-  print(PREFIX .. "the delivery spot for " .. (title or "this writ") .. " is marked on your world map.")
+  print(PREFIX .. L["the delivery spot for %s is marked on your world map."]:format(title or L["this writ"]))
   return false
 end
 
@@ -118,22 +119,53 @@ local function LearnedCustomers()
   return db and db.learned and db.learned.customers or {}
 end
 
--- Who takes a writ: { name, mapID, x, y (0-100), learned }, or nil while not known. What you saw at a turn-in
--- wins over the built-in list.
+-- Who takes a writ from players' recorded turn-ins (Tylesser - Data, when installed): the NPC that ends the writ's
+-- quest and its most seen spot. Asked once per writ.
+local collectedCustomers = {}
+local function CollectedCustomer(writID)
+  if collectedCustomers[writID] ~= nil then
+    return collectedCustomers[writID] or nil
+  end
+  local data = ns.Collected()
+  if not data then
+    return nil -- not installed, or in a fight: asked again later
+  end
+  local found = false
+  local ok, quest = pcall(data.Quest, ns.WritQuestID(writID))
+  local ids = ok and type(quest) == "table" and type(quest.ends) == "table" and quest.ends.npc
+  local npcID = type(ids) == "table" and ids[1]
+  local okNPC, npc = false, nil
+  if npcID and type(data.NPC) == "function" then
+    okNPC, npc = pcall(data.NPC, npcID)
+  end
+  local spot = okNPC and type(npc) == "table" and type(npc.spots) == "table" and npc.spots[1]
+  if spot and type(npc.name) == "string" and spot.map and spot.x and spot.y then
+    found = { name = npc.name, mapID = spot.map, x = spot.x, y = spot.y, collected = true }
+  end
+  collectedCustomers[writID] = found
+  return found or nil
+end
+
+-- Who takes a writ: { name, mapID, x, y (0-100), learned or collected }, or nil while not known. What you saw at a
+-- turn-in wins over the built-in list, and that over players' recorded turn-ins.
 function ns.WritCustomer(writID)
   local seen = writID and LearnedCustomers()[writID]
-  if type(seen) == "table" and seen[1] and seen[2] then
-    return { name = seen[1], mapID = seen[2], x = seen[3] or 0, y = seen[4] or 0, learned = true }
-  end
   local known = writID and ns.WRIT_CUSTOMERS[writID]
+  if type(seen) == "table" and seen[1] and seen[2] then
+    -- grouped under the built-in (English) name when the list has one: a turn-in on another client saw the NPC's
+    -- name in that language, and the same NPC showed as two (2026-11-27 audit)
+    return { name = seen[1], mapID = seen[2], x = seen[3] or 0, y = seen[4] or 0, learned = true,
+      key = known and known[2] == seen[2] and known[1] or nil }
+  end
   if known then
     return { name = known[1], mapID = known[2], x = known[3], y = known[4] }
   end
+  return writID and CollectedCustomer(writID) or nil
 end
 
 -- The same NPC on the same map is one customer, whichever writ it was found through.
 function ns.CustomerKey(customer)
-  return customer.name .. "@" .. tostring(customer.mapID)
+  return (customer.key or customer.name) .. "@" .. tostring(customer.mapID)
 end
 
 -- "Kzixx, Duskwood (81.8, 19.8)"
@@ -303,7 +335,7 @@ function ns.ContinentOf(mapID)
   elseif type(mapID) == "number" and mapID >= 1438 and mapID <= 1452 then
     return 1414, ns.CONTINENTS[1414]
   end
-  return 0, "Other zones"
+  return 0, L["Other zones"]
 end
 
 function ns.CustomerDirectory(counts, search, options)
@@ -431,7 +463,7 @@ function ns.SetZoneWaypoints(zone)
       local customer = zone.npcs[index].customer
       others[#others + 1] = ("%s %.1f, %.1f"):format(customer.name, customer.x, customer.y)
     end
-    print(PREFIX .. ("also in %s: %s"):format(zone.name, table.concat(others, "; ")))
+    print(PREFIX .. L["also in %s: %s"]:format(zone.name, table.concat(others, "; ")))
   end
   return true
 end

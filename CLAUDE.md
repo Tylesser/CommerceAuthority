@@ -37,6 +37,10 @@ Durotar Supply and Logistics (Horde, west of the Crossroads), currency Merchant'
     tries the ID first, then the name. Expert/Artisan herb crates are named "Waylaid Crate: Earthly Artisan Herbs"
     (kind before the level: the old `^Waylaid Crate: (%a+)` match took "Earthly" as the level). Their contents and
     counts were checked against each crate's use spell (all matched).
+  - Tylesser - Data (2026-11-27): `ns.Collected()` (Core.lua) loads it on demand (never in a fight; also picks it up
+    when loaded later). `ns.WritCustomer`: learned > WRIT_CUSTOMERS > players' data (`collected = true`, shown as
+    "(players' data)"). `ns.CrateFavor`: learned > players' data (quests requiring a Sealed crate, currency 3402) >
+    guide. `ns.UNREAD_CRATES`: the plain Waylaid Crate (read its label) and Waylaid Herbs (its bill from `Text`).
   - `ns.CRATE_LEVELS`: Favor per Waylaid Crate level (Apprentice 5, Journeyman 10, Expert 15 from the guide; Artisan
     20 is a guess), doubled for made goods (`ns.CRATE_MADE_GOODS` by category; filled "Sealed X Crate": green
     quality). Silver =

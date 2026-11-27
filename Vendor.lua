@@ -1,4 +1,5 @@
 local _, ns = ...
+local L = ns.L
 
 -- At the Commerce Authority vendors: every item that costs Merchant's Favor gets a small mark, green "Can
 -- buy" or red "Need 340", and its tooltip says how many crates the rest is. Works with Tylesser - Vendor
@@ -57,9 +58,9 @@ function ns.UpdateVendorMarks()
       local cost = DB().vendorMarks and favor and onBuyTab and button:IsShown() and ns.MerchantFavorCost(ItemIndex(slot))
       if cost and cost > 0 then
         if favor >= cost then
-          label:SetText("|cff40ff40Can buy|r")
+          label:SetText("|cff40ff40" .. L["Can buy"] .. "|r")
         else
-          label:SetText(("|cffff5050Need %s|r"):format(ns.Number(cost - favor)))
+          label:SetText("|cffff5050" .. L["Need %s"]:format(ns.Number(cost - favor)) .. "|r")
         end
         label:Show()
       else
@@ -81,7 +82,7 @@ end
 local function CratesFor(needed)
   local journeyman = ns.CRATE_LEVELS.Journeyman.favor
   local expert = ns.CRATE_LEVELS.Expert.favor
-  return ("about %d Journeyman or %d Expert crates (raw goods)"):format(math.ceil(needed / journeyman),
+  return L["about %d Journeyman or %d Expert crates (raw goods)"]:format(math.ceil(needed / journeyman),
     math.ceil(needed / expert))
 end
 
@@ -95,10 +96,10 @@ local function MerchantTooltip(tooltip, index)
     return
   end
   if favor >= cost then
-    tooltip:AddLine(("Commerce Authority: you have %s Merchant's Favor, %s left after this"):format(
+    tooltip:AddLine("Commerce Authority: " .. L["you have %s Merchant's Favor, %s left after this"]:format(
       ns.Number(favor), ns.Number(favor - cost)), 0.25, 1, 0.25)
   else
-    tooltip:AddLine(("Commerce Authority: %s more Merchant's Favor needed, %s"):format(
+    tooltip:AddLine("Commerce Authority: " .. L["%s more Merchant's Favor needed, %s"]:format(
       ns.Number(cost - favor), CratesFor(cost - favor)), 1, 0.82, 0, true)
   end
   tooltip:Show()

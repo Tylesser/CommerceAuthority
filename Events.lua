@@ -1,4 +1,5 @@
 local addonName, ns = ...
+local L = ns.L
 
 local PREFIX
 
@@ -23,7 +24,7 @@ local function Setup()
   ns.T.AddCompartment({
     text = ns.TITLE,
     onClick = ns.ToggleWindow,
-    tooltip = { "Writs, crates, reputation and Merchant's Favor.", "Click to open the window." },
+    tooltip = { L["Writs, crates, reputation and Merchant's Favor."], L["Click to open the window."] },
   })
   for _, event in ipairs(EVENTS) do
     pcall(eventFrame.RegisterEvent, eventFrame, event)
@@ -124,12 +125,12 @@ SlashCmdList.COMMERCEAUTHORITY = function(msg)
   elseif command == "debug" then
     Debug()
   else
-    print(PREFIX .. "commands")
-    print("  /aca: show or hide the window")
-    print("  /aca options: open the options")
-    print("  /aca npcs: every NPC who takes writs, with all its writs and which you have")
-    print("  /aca buy: Auctionator shopping list of the cheapest writs to your next standing")
-    print("  /aca debug: what the addon sees (faction, Favor, price addons, bags)")
-    print("  /aca feedback: report a bug or suggest an idea")
+    print(PREFIX .. L["commands"])
+    print("  /aca: " .. L["show or hide the window"])
+    print("  /aca options: " .. L["open the options"])
+    print("  /aca npcs: " .. L["every NPC who takes writs, with all its writs and which you have"])
+    print("  /aca buy: " .. L["Auctionator shopping list of the cheapest writs to your next standing"])
+    print("  /aca debug: " .. L["what the addon sees (faction, Favor, price addons, bags)"])
+    print("  /aca feedback: " .. L["report a bug or suggest an idea"])
   end
 end

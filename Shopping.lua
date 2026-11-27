@@ -1,4 +1,5 @@
 local addonName, ns = ...
+local L = ns.L
 
 -- The buy list: an Auctionator shopping list "Commerce Authority" with the cheapest writs for the
 -- reputation you still need to the next standing, or every writ one NPC takes, and the items they ask for
@@ -80,7 +81,7 @@ local function MakeList(api, picks)
   end
   local ok, err = pcall(api.CreateShoppingList, addonName, ns.SHOPPING_LIST, searches)
   if not ok then
-    Say("Auctionator couldn't make the list: " .. tostring(err))
+    Say(L["Auctionator couldn't make the list: %s"]:format(tostring(err)))
     return false
   end
   return true
@@ -89,7 +90,7 @@ end
 local function API()
   local api = Auctionator and Auctionator.API and Auctionator.API.v1
   if not (api and api.CreateShoppingList and api.ConvertToSearchString) then
-    Say("the buy list needs Auctionator.")
+    Say(L["the buy list needs Auctionator."])
     return nil
   end
   return api
@@ -103,17 +104,17 @@ function ns.CreateBuyList()
   end
   local plan = ns.PlanPurchases()
   if plan.goal <= 0 then
-    Say("the writs in your bags already reach your next standing.")
+    Say(L["the writs in your bags already reach your next standing."])
     return false
   end
   if #plan.picks == 0 then
-    Say("no priced writs yet. Scan the auction house, or search for \"Craftsman's Writ\".")
+    Say(L["no priced writs yet. Scan the auction house, or search for \"%s\"."]:format("Craftsman's Writ"))
     return false
   end
   if not MakeList(api, plan.picks) then
     return false
   end
-  Say(("shopping list \"%s\": %d writs for about %s reputation (%s needed), about %s in all."):format(
+  Say(L["shopping list \"%s\": %d writs for about %s reputation (%s needed), about %s in all."]:format(
     ns.SHOPPING_LIST, #plan.picks, ns.Number(plan.rep), ns.Number(plan.goal), ns.Money(plan.cost)))
   return true
 end
@@ -127,7 +128,7 @@ function ns.CreateCustomerBuyList(group)
   if not MakeList(api, group.writs) then
     return false
   end
-  Say(("shopping list \"%s\": %d writs for %s, about %s reputation, about %s in all."):format(
+  Say(L["shopping list \"%s\": %d writs for %s, about %s reputation, about %s in all."]:format(
     ns.SHOPPING_LIST, #group.writs, ns.CustomerText(group.customer), ns.Number(group.rep), ns.Money(group.total)))
   return true
 end
@@ -141,7 +142,7 @@ function ns.CreateZoneBuyList(zone)
   if not MakeList(api, zone.writs) then
     return false
   end
-  Say(("shopping list \"%s\": %d writs for %d NPCs in %s, about %s reputation, about %s in all."):format(
+  Say(L["shopping list \"%s\": %d writs for %d NPCs in %s, about %s reputation, about %s in all."]:format(
     ns.SHOPPING_LIST, #zone.writs, #zone.npcs, zone.name, ns.Number(zone.rep), ns.Money(zone.total)))
   return true
 end
@@ -153,22 +154,22 @@ function ns.CreateCrateBuyList(crate)
   local option = crate and crate.options[1]
   if not (api and option) then
     if api then
-      Say("no known fill for " .. (crate and crate.info.name or "that crate") .. ".")
+      Say(L["no known fill for %s."]:format(crate and crate.info.name or L["that crate"]))
     end
     return false
   end
   local need = math.max(option.count * crate.count - option.owned, 0)
   if need == 0 then
-    Say(("your bags already hold enough %s to fill %s."):format(option.name, crate.info.name))
+    Say(L["your bags already hold enough %s to fill %s."]:format(option.name, crate.info.name))
     return false
   end
   local search = api.ConvertToSearchString(addonName, { searchString = option.name, isExact = true, quantity = need })
   local ok, err = pcall(api.CreateShoppingList, addonName, ns.SHOPPING_LIST, { search })
   if not ok then
-    Say("Auctionator couldn't make the list: " .. tostring(err))
+    Say(L["Auctionator couldn't make the list: %s"]:format(tostring(err)))
     return false
   end
-  Say(("shopping list \"%s\": %d %s to fill %d %s."):format(ns.SHOPPING_LIST, need, option.name, crate.count,
+  Say(L["shopping list \"%s\": %d %s to fill %d %s."]:format(ns.SHOPPING_LIST, need, option.name, crate.count,
     crate.info.name))
   return true
 end
@@ -206,23 +207,26 @@ function ns.SearchCrate(crate)
     terms[#terms + 1] = option.name
   end
   if #terms == 0 then
-    Say("no known fill for " .. crate.info.name .. ".")
+    Say(L["no known fill for %s."]:format(crate.info.name))
     return false
   end
   local api = Auctionator and Auctionator.API and Auctionator.API.v1
   if api and api.MultiSearchExact then
     local ok, err = pcall(api.MultiSearchExact, addonName, terms)
     if ok then
-      Say(("searching the auction house: what fills %s (%d item%s)."):format(crate.info.name, #terms,
-        #terms == 1 and "" or "s"))
+      if #terms == 1 then
+        Say(L["searching the auction house: what fills %s (1 item)."]:format(crate.info.name))
+      else
+        Say(L["searching the auction house: what fills %s (%d items)."]:format(crate.info.name, #terms))
+      end
       return true
     end
-    Say("Auctionator couldn't search: " .. tostring(err))
+    Say(L["Auctionator couldn't search: %s"]:format(tostring(err)))
   end
   local ok, started = pcall(BlizzardSearch, terms[1])
   if ok and started then
     if #terms > 1 then
-      Say(("searching for %s; install Auctionator to search all %d fills at once."):format(terms[1], #terms))
+      Say(L["searching for %s; install Auctionator to search all %d fills at once."]:format(terms[1], #terms))
     end
     return true
   end
@@ -257,23 +261,27 @@ function ns.SearchWrits(writIDs, held)
     end
   end
   if #terms == 0 then
-    Say("you already hold all of these writs, and they're ready.")
+    Say(L["you already hold all of these writs, and they're ready."])
     return false
   end
   local api = Auctionator and Auctionator.API and Auctionator.API.v1
   if api and api.MultiSearchExact then
     local ok, err = pcall(api.MultiSearchExact, addonName, terms)
     if ok then
-      Say(("searching the auction house: %d writ%s and the items they ask for (the materials for those you "
-        .. "craft)."):format(writCount, writCount == 1 and "" or "s"))
+      if writCount == 1 then
+        Say(L["searching the auction house: 1 writ and the items they ask for (the materials for those you craft)."])
+      else
+        Say(L["searching the auction house: %d writs and the items they ask for (the materials for those you craft)."]
+          :format(writCount))
+      end
       return true
     end
-    Say("Auctionator couldn't search: " .. tostring(err))
+    Say(L["Auctionator couldn't search: %s"]:format(tostring(err)))
   end
   local ok, started = pcall(BlizzardSearch, terms[1])
   if ok and started then
     if #terms > 1 then
-      Say(("searching for %s; install Auctionator to search all %d names at once."):format(terms[1], #terms))
+      Say(L["searching for %s; install Auctionator to search all %d names at once."]:format(terms[1], #terms))
     end
     return true
   end
