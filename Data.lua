@@ -433,9 +433,31 @@ ns.CRATE_LEVELS = {
   Journeyman = { favor = 10 },
   Expert = { favor = 15 },
   Artisan = { favor = 20, guess = true },
+  Elite = { favor = 25, guess = true }, -- Sealed Elite Crates exist (no Waylaid Elite crate yet): a guess too
 }
 -- Made goods: these crates pay double. Used when the item's quality isn't known yet.
 ns.CRATE_MADE_GOODS = { Cloth = true, Bars = true, Parts = true }
+
+-- The crates by item ID (WoW Forever's item table), so they are known in every language and whatever their name
+-- says ("Waylaid Crate: Earthly Artisan Herbs" puts its kind before the level). To fill: [itemID] = { level,
+-- category }; sealed (filled) crates: [itemID] = level, in three qualities each (the quality says raw or made).
+ns.CRATE_ITEMS = {
+  [248682] = { "Apprentice", "Herbs" }, [248683] = { "Apprentice", "Ore" }, [248684] = { "Apprentice", "Textiles" },
+  [248685] = { "Apprentice", "Oddities" }, [248686] = { "Journeyman", "Herbs" }, [248687] = { "Journeyman", "Ore" },
+  [248688] = { "Journeyman", "Textiles" }, [248689] = { "Journeyman", "Oddities" }, [248690] = { "Expert", "Roots" },
+  [248691] = { "Expert", "Flowers" }, [248692] = { "Expert", "Ore" }, [248693] = { "Expert", "Textiles" },
+  [248694] = { "Expert", "Oddities" }, [248695] = { "Artisan", "Roots" }, [248696] = { "Artisan", "Flowers" },
+  [248697] = { "Artisan", "Ore" }, [248698] = { "Artisan", "Textiles" }, [248699] = { "Artisan", "Oddities" },
+  [248702] = { "Apprentice", "Cloth" }, [248703] = { "Apprentice", "Bars" }, [248704] = { "Apprentice", "Parts" },
+  [248705] = { "Journeyman", "Cloth" }, [248706] = { "Journeyman", "Bars" }, [248707] = { "Journeyman", "Parts" },
+  [248708] = { "Expert", "Cloth" }, [248709] = { "Expert", "Bars" }, [248710] = { "Expert", "Parts" },
+  [248711] = { "Artisan", "Cloth" }, [248712] = { "Artisan", "Bars" }, [248713] = { "Artisan", "Parts" },
+}
+ns.SEALED_CRATE_ITEMS = {
+  [248765] = "Apprentice", [248766] = "Journeyman", [248767] = "Expert", [248768] = "Artisan", [248769] = "Elite",
+  [248770] = "Apprentice", [248771] = "Journeyman", [248772] = "Expert", [248773] = "Artisan", [248774] = "Elite",
+  [248775] = "Apprentice", [248776] = "Journeyman", [248777] = "Expert", [248778] = "Artisan", [248779] = "Elite",
+}
 
 -- What fills each crate: one stack of one of these, [category][level] = { { itemID, count, name }, ... }
 -- (wow.gg "Merchant's Favor" guide). The guides name some categories differently (Curiosities and Oddities,
@@ -491,7 +513,7 @@ ns.CRATE_CONTENTS = {
   },
 }
 ns.CRATE_CATEGORY_ALIASES = { Curiosities = "Oddities", Fabrics = "Cloth", Ingots = "Bars", Stems = "Roots",
-  Flowering = "Flowers", Blooms = "Flowers" }
+  Earthly = "Roots", Flowering = "Flowers", Blooms = "Flowers" }
 
 -- The CRATE_CONTENTS category for a crate's name part ("Ore", "Fabrics", "Flowering Herbs"), or nil.
 function ns.CrateCategory(text)

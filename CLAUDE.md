@@ -32,6 +32,11 @@ Durotar Supply and Logistics (Horde, west of the Crossroads), currency Merchant'
   - `ns.CRATE_CONTENTS[category][level]` = { { itemID, count, name } }: one stack of one of these fills a crate
     (wow.gg guide). Guides disagree on category names: `ns.CrateCategory` maps Curiosities/Oddities,
     Fabrics/Cloth, Ingots/Bars; Expert/Artisan herbs are Roots and Flowers (plain "Herbs" = both lists).
+  - `ns.CRATE_ITEMS` / `ns.SEALED_CRATE_ITEMS` (2026-11-27): the 30 Waylaid Crates (248682-248713) and 15 Sealed
+    crates (248765-248779, Apprentice to Elite in three qualities) by item ID from Forever's item table; `ns.CrateInfo`
+    tries the ID first, then the name. Expert/Artisan herb crates are named "Waylaid Crate: Earthly Artisan Herbs"
+    (kind before the level: the old `^Waylaid Crate: (%a+)` match took "Earthly" as the level). Their contents and
+    counts were checked against each crate's use spell (all matched).
   - `ns.CRATE_LEVELS`: Favor per Waylaid Crate level (Apprentice 5, Journeyman 10, Expert 15 from the guide; Artisan
     20 is a guess), doubled for made goods (`ns.CRATE_MADE_GOODS` by category; filled "Sealed X Crate": green
     quality). Silver =
