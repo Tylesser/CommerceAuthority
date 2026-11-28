@@ -75,8 +75,9 @@ function ns.MapName(mapID)
   return info and info.name or "?"
 end
 
--- Puts a waypoint on mapID at x, y (0-1). Returns true when one was set.
-local function Waypoint(mapID, x, y, title)
+-- Puts a waypoint on mapID at x, y (0-1). Returns true when one was set. `quiet`: no chat line (the delivery
+-- route prints one line for all its stops).
+local function Waypoint(mapID, x, y, title, quiet)
   local where = ("%s %.1f, %.1f"):format(ns.MapName(mapID), x * 100, y * 100)
   if TomTom and TomTom.AddWaypoint then
     TomTom:AddWaypoint(mapID, x, y, { title = title, from = "Commerce Authority" })
@@ -86,12 +87,17 @@ local function Waypoint(mapID, x, y, title)
       C_SuperTrack.SetSuperTrackedUserWaypoint(true)
     end
   else
-    print(PREFIX .. ("%s: %s"):format(title or L["the writ"], where))
+    if not quiet then
+      print(PREFIX .. ("%s: %s"):format(title or L["the writ"], where))
+    end
     return false
   end
-  print(PREFIX .. L["waypoint for %s: %s"]:format(title or L["the writ"], where))
+  if not quiet then
+    print(PREFIX .. L["waypoint for %s: %s"]:format(title or L["the writ"], where))
+  end
   return true
 end
+ns.SetWaypoint = Waypoint
 
 -- Puts a waypoint on a writ's delivery spot. Without a known spot, tracks the quest and opens the map.
 function ns.SetWritWaypoint(questID, title)
@@ -186,8 +192,8 @@ function ns.CustomerWrits(customer)
   return list
 end
 
-function ns.SetCustomerWaypoint(customer)
-  return Waypoint(customer.mapID, customer.x / 100, customer.y / 100, customer.name)
+function ns.SetCustomerWaypoint(customer, quiet)
+  return Waypoint(customer.mapID, customer.x / 100, customer.y / 100, customer.name, quiet)
 end
 
 -- The NPC whose quest dialog is open and where you stand: { name, mapID, x, y (0-100) }, or nil (no NPC, or

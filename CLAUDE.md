@@ -80,6 +80,27 @@ Durotar Supply and Logistics (Horde, west of the Crossroads), currency Merchant'
   (`C_QuestLog.GetInfo` or `GetQuestLogTitle`) and `ns.SetWritWaypoint`
   (`C_QuestLog.GetNextWaypoint`, else the quest's pin from `GetQuestsOnMap`; TomTom or `C_Map.SetUserWaypoint` +
   super-track; without a spot it tracks the quest and opens the map).
+- `Route.lua` (2026-11-28, the user's request): the delivery route and the world map pins. `ns.DeliveryRoute(counts)`
+  = the `ns.Deliveries` groups with a known customer (only those with a ready writ while there are any),
+  nearest-neighbour from the player in world yards (`ns.WorldPosition`: `C_Map.GetWorldPosFromMapPos` + `CreateVector2D`,
+  per continent; other continents and spots without a position last). `ns.SetDeliveryRoute()` (Route button,
+  `/aca route`): TomTom gets every stop, the game's user waypoint only the first (`ns.SetCustomerWaypoint(customer,
+  quiet)`; Quests.lua's `Waypoint` takes `quiet` and is `ns.SetWaypoint`), one chat line. Pins: our own data provider on
+  `WorldMapFrame` (`MapCanvasDataProviderMixin`, `AddDataProvider`; attached at load or on ADDON_LOADED
+  Blizzard_WorldMap), frames on the map canvas (holder at u*width, -v*height, the pin scaled 1/`GetCanvasScale`), level
+  `PIN_FRAME_LEVEL_AREA_POI`. `ns.MapPinPoints(mapID)`: the customer's own map, or its rect on a parent map
+  (`C_Map.GetMapRectOnMap`). Clickable (waypoint), hover lists the writs. Redrawn after BAG_UPDATE_DELAYED /
+  QUEST_LOG_UPDATE (0.5 s) while the map shows. Option `mapPins`.
+- `Characters.lua` (2026-11-28, the user's request): `CommerceAuthorityDB.characters["Realm-Name"]` = { name, realm,
+  class, side, standingID, value, min, max, favor, writs, writRep, sealedWrits, crates, crateFavor, toFill, time },
+  saved 6 s after PLAYER_ENTERING_WORLD, 2 s after currency / faction / bag changes (`ns.RequestSaveCharacter`), at
+  PLAYER_LOGOUT and before the Characters tab draws; characters with nothing (no faction, Favor, writs or crates) are not
+  saved. `ns.Characters()` (you first, then standing), `ns.ForgetCharacter(key)` (never yourself; shift-right-click).
+- Crate price alert (Core.lua, 2026-11-28, the user's request): `crateAlert` (off), `crateAlertBelow` (copper,
+  `ns.ParseMoney` = Profit Sort's), `crateAlertSound`. `ns.CheckCrateAlert()` walks `ns.CheapestCrates()` (cheapest
+  first) and names each crate at or under the amount once per session (`ns.ResetCrateAlerts` when the option or
+  amount changes); run 3 s after Auctionator's `RegisterForDBUpdate` callback and AUCTION_HOUSE_CLOSED
+  (`ns.RequestCrateAlert`) and on every window refresh.
 - `Vendor.lua`: marks on merchant rows for items costing Merchant's Favor (`GetMerchantItemCostItem`, currency link)
   and a tooltip line. The merchant index comes from `MerchantItemNItemButton:GetID()`, which Vendor Search also sets
   when it filters; updated again next frame after other addons lay the page out.
@@ -104,7 +125,9 @@ Durotar Supply and Logistics (Horde, west of the Crossroads), currency Merchant'
 - `Window.lua`: the `/aca` window (`CommerceAuthorityWindow`, in UISpecialFrames so Esc closes it); refreshes go
   through `ns.RequestRefresh` (at most twice a second, only while shown). Two tabs since 2026-11-28 (the user: writs
   and crates are not the same thing): `window.panes.writs` / `.crates` (full-window frames, parts keep window
-  coordinates), `window.tabs`, `ns.SelectWindowTab(key)` (saved in `windowTab`). Writs: `window.deliveries` (writs
+  coordinates), `window.tabs`, `ns.SelectWindowTab(key)` (saved in `windowTab`; "characters" since 2026-11-28:
+  `window.charRows`, scrolled with the wheel, `window.charTotal`; the Writs tab's `window.route` button left of
+  Deliveries). Writs: `window.deliveries` (writs
   only), `window.rows` (By writ / NPC / zone). Crates: `window.favor`, `window.crateBags`, `window.fills`
   (`ns.CratesToFill`), `window.rankRows` (`ns.CheapestCrates`, `rankList` rows scroll with the wheel),
   `window.rankBuy`. `ns.CheapestMode` maps an old saved "crate" to "writ".
@@ -140,5 +163,8 @@ Tests: `tools/harness/ca_test.lua` (`node run.js ca_test.lua E:/Games/Wow/Addons
 - Whether `C_QuestLog.GetNextWaypoint` or `GetQuestsOnMap` know the writ delivery spots on Forever.
 - Where the vendor mark sits on the merchant row, next to Vendor Search's own marks.
 - The faction chat message format on Forever, and whether writs ask for more than 1 item.
+- The map pins: their level against the game's own pins, the canvas scale on zoom, and whether GetMapRectOnMap
+  places zone NPCs on Forever's continent maps. Whether `C_Map.GetWorldPosFromMapPos` gives sensible yards (the
+  route's distances) and whether Auctionator's `RegisterForDBUpdate` fires after a scan for the crate alert.
 - Customers: whether the table's NPCs and spots are right, and whether `UnitName("npc")` and the player's map
   position at QUEST_COMPLETE give the customer (learned per writ in `learned.customers`).

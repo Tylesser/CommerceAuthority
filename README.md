@@ -13,7 +13,7 @@ A helper for the WoW Forever crafting factions, the **Azeroth Commerce Authority
   - **who takes it**: each writ goes to its own NPC somewhere in the world ("Deliver to Kzixx, Duskwood (81.8, 19.8)"), and the other writs that NPC takes, marked when you have them, so you can collect them all and deliver them in one trip.
 - Sealed writs (Sealed Journeyman's, Expert's and Artisan's Writ) show the reputation of the writ they open into.
 - **Crate tooltips**: Waylaid Crates show the Merchant's Favor and silver they give when filled and turned in, and **the cheapest way to fill them**: each crate takes one stack of one item from its list (like 20 Iron Ore or 10 Silver Ore), priced from your auction addon, and whether your bags already hold enough. With the crate's own price you see what each Favor costs.
-- **The window** (`/aca`), in two tabs: **Writs** and **Crates**. The tab you used last opens next time.
+- **The window** (`/aca`), in three tabs: **Writs**, **Crates** and **Characters**. The tab you used last opens next time.
 - **Writs** tab:
   - your standing, with the reputation your bags would add shown on the bar,
   - the writs in your bags and the reputation they give,
@@ -26,7 +26,11 @@ A helper for the WoW Forever crafting factions, the **Azeroth Commerce Authority
   - the crates in your bags, filled or still to fill,
   - **Crates to fill**: the Waylaid Crates in your bags, with the cheapest way to fill each. Click one at the auction house to search for everything that fills it (picking an item there opens its buy box with the amount your crates still need), or elsewhere to put the cheapest fill on the buy list,
   - **Cheapest Merchant's Favor**: every crate on the auction house by what turning it in costs: the crate's price plus the cheapest way to fill it (a Sealed crate's price alone), cheapest first, with the cost per Favor. Scroll it with the mouse wheel. Click a crate at the auction house to search for it and everything that fills it, elsewhere to put it and its cheapest fill on the buy list; **Buy list** does that for the cheapest one.
-- Under both tabs: this session's Favor, reputation and turn-ins.
+- **Characters** tab: every character's standing, Merchant's Favor and the writs and crates in its bags, with the totals for all of them and when you last played each (`/aca characters`). A character shows up once it has reputation, Favor, writs or crates. Shift-right-click one to forget it.
+- Under every tab: this session's Favor, reputation and turn-ins.
+- **Delivery route**: **Route** on the Writs tab (`/aca route`) puts waypoints on the NPCs who take your ready writs, nearest first from where you stand. With TomTom every stop gets one; otherwise the game's map pin goes on the first and chat names the rest. When no writ is ready yet, the route takes every NPC.
+- **Writ NPCs on the map**: the world map shows the NPCs who take the writs you hold, on zone and continent maps: green when one is ready, gold while it still needs its item. Hover a pin for the writs, click it for a waypoint. Untick **Writ NPCs on the map** on the options page to hide them.
+- **Crate price alert** (off until you switch it on): tick **Tell me when a crate is cheap** on the options page and type an amount (like 50s or 1g 20s). Every crate whose price plus its cheapest fill is at or under it gets a chat line, once per crate each session, after a scan or a search; with a sound if you like.
 - **Writ NPCs** (`/aca npcs`, or **All NPCs** in the window): every NPC who takes writs, grouped by continent and zone, with all the writs it takes and which of them you have (ready, needs the item, not opened) or what each costs on the auction house. Zone and NPC lines show how many writs are yours and what buying the rest costs ("+" when some have no auction price yet). Zones and NPCs you hold writs for come first; **Way** puts a waypoint on an NPC or on every NPC of a zone, and the search box finds an NPC, zone or writ. Writs whose NPC isn't known yet are listed at the end. A ready writ you haven't opened (your bags hold what it asks for) gets a **Start** button there and in your Deliveries: it opens the writ's quest.
 - **Search the auction house with a click**: while the auction house is open, click a writ, an NPC or a zone (in the cheapest list or in Writ NPCs) to search for those writs (the ones you don't have yet) and the items they ask for, or the items' materials when crafting them is cheaper (from Profit Sort). With Auctionator all of them at once in its Shopping tab; without it the game's search box takes the first.
 - **Vendor marks**: at the Commerce Authority vendors, everything that costs Merchant's Favor shows "Can buy" or how much more you need, and its tooltip says how many crates that is.
@@ -58,6 +62,8 @@ Optional: [Tylesser - Data](https://tylesser.com/tylesserdata/) fills in what th
 | `/aca` or `/commerce` | Show or hide the window |
 | `/aca options` | Open the options page (also Esc > Options > AddOns > Tylesser) |
 | `/aca npcs` | Show or hide the Writ NPCs window |
+| `/aca route` | Waypoints to the NPCs who take your writs, nearest first |
+| `/aca characters` | Open the window on the Characters tab |
 | `/aca buy` | Make the Auctionator buy list |
 | `/aca debug` | Show what the addon sees: faction, Favor, price addons, professions, bags |
 | `/aca feedback` | Get the link to report a bug or suggest an idea |

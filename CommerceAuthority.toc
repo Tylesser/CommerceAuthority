@@ -19,6 +19,8 @@ Core.lua
 Learn.lua
 Tooltip.lua
 Quests.lua
+Route.lua
+Characters.lua
 Vendor.lua
 Shopping.lua
 Window.lua

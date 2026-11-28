@@ -58,6 +58,66 @@ function ns.CreateOptions()
   _, help = CreateCheck(panel, help, L["Open beside the auction house"],
     L["When the auction house opens, the window opens beside it and closes with it. The Commerce Authority button on the auction house's edge opens it too."],
     "auctionDock")
+  _, help = CreateCheck(panel, help, L["Writ NPCs on the map"],
+    L["The world map shows the NPCs who take the writs you hold: green when one is ready, gold while it still needs its item. Hover for the writs, click for a waypoint."],
+    "mapPins", function()
+      if ns.RefreshMapPins then
+        ns.RefreshMapPins()
+      end
+    end)
+  local alert
+  alert, help = CreateCheck(panel, help, L["Tell me when a crate is cheap"],
+    L["When a crate and its cheapest fill cost this much or less on the auction house, chat names it, once per crate each session (after a scan or a search). Type an amount like 50s or 1g 20s."],
+    "crateAlert", function()
+      ns.ResetCrateAlerts()
+      ns.RequestCrateAlert()
+    end)
+  local below = CreateFrame("EditBox", nil, panel, "InputBoxTemplate")
+  below:SetSize(80, 20)
+  below:SetAutoFocus(false)
+  below:SetPoint("LEFT", alert, "RIGHT", 250, 0)
+  ns.T.EditBox(below)
+  local belowLabel = panel:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+  belowLabel:SetPoint("RIGHT", below, "LEFT", -10, 0)
+  belowLabel:SetText(L["At most:"])
+  local function ShowBelow()
+    below:SetText(ns.Money(CommerceAuthorityDB.crateAlertBelow or 0))
+  end
+  local function SaveBelow(self)
+    local amount = ns.ParseMoney(self:GetText())
+    if amount and amount > 0 then
+      CommerceAuthorityDB.crateAlertBelow = amount
+      ns.ResetCrateAlerts()
+      ns.RequestCrateAlert()
+    end
+    ShowBelow()
+    self:ClearFocus()
+  end
+  below:SetScript("OnShow", ShowBelow)
+  below:SetScript("OnEnterPressed", SaveBelow)
+  below:SetScript("OnEditFocusLost", function(self)
+    local amount = ns.ParseMoney(self:GetText())
+    if amount and amount > 0 and amount ~= CommerceAuthorityDB.crateAlertBelow then
+      SaveBelow(self)
+    else
+      ShowBelow()
+    end
+  end)
+  below:SetScript("OnEscapePressed", function(self)
+    ShowBelow()
+    self:ClearFocus()
+  end)
+  panel.crateAlertBelow = below
+  local sound = ns.T.Check(panel, L["With a sound"], "GameFontHighlightSmall")
+  sound:SetPoint("TOPLEFT", help, "BOTTOMLEFT", 0, -2)
+  sound:SetScript("OnShow", function(self)
+    self:SetChecked(CommerceAuthorityDB.crateAlertSound)
+  end)
+  sound:SetScript("OnClick", function(self)
+    CommerceAuthorityDB.crateAlertSound = self:GetChecked() and true or false
+  end)
+  panel.crateAlertSound = sound
+  help = sound
 
   local sources = panel:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
   local sourcesLine = ns.T.Divider(panel, 540, 13)

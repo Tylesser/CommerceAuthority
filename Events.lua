@@ -11,8 +11,35 @@ eventFrame:RegisterEvent("PLAYER_ENTERING_WORLD")
 local EVENTS = {
   "QUEST_COMPLETE", "QUEST_TURNED_IN", "CURRENCY_DISPLAY_UPDATE", "CHAT_MSG_COMBAT_FACTION_CHANGE",
   "BAG_UPDATE_DELAYED", "UPDATE_FACTION", "QUEST_LOG_UPDATE", "SKILL_LINES_CHANGED", "SPELLS_CHANGED",
-  "TRAIT_CONFIG_UPDATED", "AUCTION_HOUSE_SHOW", "AUCTION_HOUSE_CLOSED",
+  "TRAIT_CONFIG_UPDATED", "AUCTION_HOUSE_SHOW", "AUCTION_HOUSE_CLOSED", "PLAYER_LOGOUT",
 }
+
+-- The map pins follow bag and quest changes while the world map is open (QUEST_LOG_UPDATE comes in bursts).
+local pinsPending = false
+local function RequestMapPins()
+  if pinsPending or not (C_Timer and C_Timer.After) then
+    if not pinsPending then
+      ns.RefreshMapPins()
+    end
+    return
+  end
+  pinsPending = true
+  C_Timer.After(0.5, function()
+    pinsPending = false
+    ns.RefreshMapPins()
+  end)
+end
+
+-- Auctionator tells when its prices change (a scan, a search): the crate alert checks again.
+local function WatchPrices()
+  local api = Auctionator and Auctionator.API and Auctionator.API.v1
+  if api and type(api.RegisterForDBUpdate) == "function" then
+    pcall(api.RegisterForDBUpdate, addonName, function()
+      ns.RequestCrateAlert()
+      ns.RequestRefresh()
+    end)
+  end
+end
 
 local function Setup()
   CommerceAuthorityDB = CommerceAuthorityDB or {}
@@ -21,6 +48,8 @@ local function Setup()
   ns.CreateOptions()
   ns.HookItemTooltips()
   ns.HookVendor()
+  ns.HookMapPins()
+  WatchPrices()
   ns.T.AddCompartment({
     text = ns.TITLE,
     onClick = ns.ToggleWindow,
@@ -41,6 +70,7 @@ eventFrame:SetScript("OnEvent", function(self, event, ...)
     -- the currency can still read 0 right at login: take the starting balance a little later
     if C_Timer and C_Timer.After then
       C_Timer.After(5, ns.StartFavorTracking)
+      C_Timer.After(6, function() ns.SaveCharacter() end)
     end
   elseif event == "QUEST_COMPLETE" then
     ns.OnQuestComplete()
@@ -50,6 +80,7 @@ eventFrame:SetScript("OnEvent", function(self, event, ...)
     local currencyID = ...
     if currencyID == nil or currencyID == ns.FAVOR_CURRENCY then
       ns.OnFavorChanged()
+      ns.RequestSaveCharacter()
     end
   elseif event == "CHAT_MSG_COMBAT_FACTION_CHANGE" then
     ns.OnRepMessage((...))
@@ -57,7 +88,16 @@ eventFrame:SetScript("OnEvent", function(self, event, ...)
     ns.OnAuctionHouseShow()
   elseif event == "AUCTION_HOUSE_CLOSED" then
     ns.OnAuctionHouseClosed()
+    ns.RequestCrateAlert()
+  elseif event == "PLAYER_LOGOUT" then
+    ns.SaveCharacter()
   else
+    if event == "BAG_UPDATE_DELAYED" or event == "UPDATE_FACTION" then
+      ns.RequestSaveCharacter()
+    end
+    if event == "BAG_UPDATE_DELAYED" or event == "QUEST_LOG_UPDATE" then
+      RequestMapPins()
+    end
     if event == "SKILL_LINES_CHANGED" or event == "SPELLS_CHANGED" or event == "TRAIT_CONFIG_UPDATED" then
       ns.InvalidateCheapest()
     end
@@ -124,6 +164,11 @@ SlashCmdList.COMMERCEAUTHORITY = function(msg)
     ns.CreateBuyList()
   elseif command == "npcs" or command == "npc" then
     ns.ToggleNPCWindow()
+  elseif command == "route" or command == "next" then
+    ns.SetDeliveryRoute()
+  elseif command == "characters" or command == "alts" then
+    ns.EnsureWindow():Show()
+    ns.SelectWindowTab("characters")
   elseif command == "feedback" then
     ns.T.ShowFeedback()
   elseif command == "debug" then
@@ -133,6 +178,8 @@ SlashCmdList.COMMERCEAUTHORITY = function(msg)
     print("  /aca: " .. L["show or hide the window"])
     print("  /aca options: " .. L["open the options"])
     print("  /aca npcs: " .. L["every NPC who takes writs, with all its writs and which you have"])
+    print("  /aca route: " .. L["waypoints to the NPCs who take your writs, nearest first"])
+    print("  /aca characters: " .. L["what each of your characters has"])
     print("  /aca buy: " .. L["Auctionator shopping list of the cheapest writs to your next standing"])
     print("  /aca debug: " .. L["what the addon sees (faction, Favor, price addons, bags)"])
     print("  /aca feedback: " .. L["report a bug or suggest an idea"])

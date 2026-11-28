@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.7.0
+
+- **Delivery route**: **Route** on the Writs tab (or `/aca route`) puts waypoints on the NPCs who take your ready writs, nearest first from where you stand. With TomTom every stop gets one; otherwise the game's map pin goes on the first and chat names the rest. When no writ is ready yet, the route takes every NPC.
+- **Writ NPCs on the map**: the world map shows the NPCs who take the writs you hold, green when one is ready, gold while it still needs its item. Hover a pin for the writs, click it for a waypoint. Option **Writ NPCs on the map** (on by default).
+- **Characters tab**: every character's standing, Merchant's Favor and the writs and crates in its bags, with the totals for all of them and when you last played each. Shift-right-click one to forget it. Also `/aca characters`.
+- **Crate price alert** (off until you switch it on): **Tell me when a crate is cheap** names every crate whose price plus its cheapest fill is at or under the amount you type (like 50s or 1g 20s), once per crate each session, after a scan or a search. With a sound if you like.
+
 ## 1.6.0
 
 - **Beside the auction house**: the window opens docked to the auction house's right edge when you open it, and closes with it. When it's closed, a Commerce Authority button on the auction house's edge opens it. Drag it away to keep it open where you put it. Option **Open beside the auction house** (on by default).
